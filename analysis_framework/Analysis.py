@@ -4,6 +4,7 @@ import re
 from typing import Any
 from .Backports import kP10
 from collections import deque
+from pathlib import Path
 
 
 class Analysis:
@@ -280,12 +281,13 @@ class Analysis:
 
 
 
-    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None):
+    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None):
         histograms = self._histograms[name]
         stack = ROOT.THStack()
         params = (name, int_lumi, e_pol, p_pol)
         self._scaled_histograms[params] = {}
         legend = ROOT.TLegend(0.6, 0.7, 1., 1,)
+        overlay_hists = []
         # FIXME: put the calculation of the histograms into a separate method and only calculate them here if needed
         for i, (category_name, dataframes) in enumerate(self._categories.items()):
             if categories and category_name not in categories:
@@ -304,10 +306,14 @@ class Analysis:
                 scaled_cat_histograms.append(h)
             # sum up scaled category histograms, starting with the first one
             h = sum(scaled_cat_histograms[1:], start=scaled_cat_histograms[0])
-            h.SetFillColor(kP10[i].GetNumber())
-            # TODO: parse k to nice process name
+            if overlay and category_name in overlay:
+                h.SetLineColor(kP10[i].GetNumber())
+                h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
+                overlay_hists.append(h)
+            else:
+                h.SetFillColor(kP10[i].GetNumber())
+                stack.Add(h)
             legend.AddEntry(h, category_name, "f")
-            stack.Add(h)
             # store h so that it does not get deleted
             self._scaled_histograms[params][category_name] = h
         legend.SetNColumns(2)
@@ -317,8 +323,13 @@ class Analysis:
         self._canvases[params] = canvas
         stack.SetTitle(f";{name};events")
         stack.Draw(draw_opt)
+        y_max_overlay = 0
+        for h in overlay_hists:
+            h.Draw(f"{draw_opt} same")
+            y_max_overlay = max(h.GetMaximum(), y_max_overlay)
         legend.Draw()
-        y_max = stack.GetMaximum()
+        y_max = max(stack.GetMaximum(), y_max_overlay)
+        stack.SetMaximum(y_max*1.1)
         x_length = abs(stack.GetXaxis().GetXmax() - stack.GetXaxis().GetXmin())
         if x_arrowr:
             x1 = x_arrowr
@@ -344,6 +355,7 @@ class Analysis:
             canvas.SetLogy()
         canvas.Draw()
         if plot_dir:
+            Path(plot_dir).mkdir(parents=True, exist_ok=True)
             canvas.SaveAs(f"{plot_dir}/{params}.pdf")
         return stack, legend, canvas
 
