@@ -164,10 +164,6 @@ class Analysis:
     def book_histogram_ND(self, name: str, config: tuple, columns: list[str],  categories: list[str]|None = None):
         self._histograms[name] = self.book_some_method("HistoND", (config, columns), categories)
 
-    # FIXME broken
-    def book_histogram_ND_sparse(self, name: str, config: tuple, columns: list[str],  categories: list[str]|None = None):
-        self._histograms[name] = self.book_some_method("Fill", (ROOT.THnSparseD(*config), columns), categories)
-
     def book_variations(self, name: str, categories: list[str]|None = None):
         res = {}
         histograms = self._histograms[name]
@@ -233,8 +229,6 @@ class Analysis:
                     # add meta information
                     meta_dir = dir.mkdir("meta", "", True)
                     meta_dir.cd()
-                    # FIXME
-                    # weight_key = k.removesuffix("_signal").removesuffix("_bkg")
                     weight_key = k
                     lumi, e_pol, p_pol = self._dataset.get_lumi_and_pol(weight_key)
                     lumi_par = ROOT.TParameter["float"]("lumi", lumi)
@@ -261,8 +255,6 @@ class Analysis:
                     # add meta information
                     meta_dir = dir.mkdir("meta", "", True)
                     meta_dir.cd()
-                    # FIXME
-                    # weight_key = k.removesuffix("_signal").removesuffix("_bkg")
                     weight_key = k
                     lumi, e_pol, p_pol = self._dataset.get_lumi_and_pol(weight_key)
                     lumi_par = ROOT.TParameter["float"]("lumi", lumi)
@@ -382,8 +374,6 @@ class Analysis:
             for k in frames:
                 reports = self._reports[k]
                 weight_key = k
-                # FIXME only do this step is needed!
-                weight_key  = weight_key#.removesuffix("_signal").removesuffix("_bkg")
                 weight = self._dataset.get_weight(weight_key, int_lumi, e_pol, p_pol)
                 for i, cut_info in enumerate(reports):
                     # print(f"processing cutinfo for category: {category_name}, frame: {k}, cut_name: {cut_info.GetName()}, pass: {cut_info.GetPass()}")
@@ -471,7 +461,7 @@ class Analysis:
         print(line, "efficiency")
 
 
-    def set_categories(self, input: dict[str, dict[str, str]]):
+    def set_categories(self, input: dict[str, dict[str, str | None]]):
         """Defines categories that can be used that group multiple samples together or just use parts of a sample. The categories are expected to be disjoint. Two signal categories can not share the same processes."""
         # example_input = {
         # "4f_sw_sl_signal": {"pattern": "4f_sw_sl", "cut": "pre_defined_signal_cut"},
@@ -491,15 +481,6 @@ class Analysis:
             if category_name.endswith("_signal"):
                 signals.append(category_name)
             categories[category_name] = dataframes
-            # now transfer metadata
-            # need to get metadata from before the signal definition cut for correct weight
-            # FIXME: add the new samples here and also the category
-            # old_frame = frame.removesuffix("_bkg").removesuffix("_signal")
-            # *_, old_meta = self._dataset.get_sample(old_frame)
-            # meta = old_meta.copy()
-            # meta["category"] = category_name
-            # new_sample = ([tree_name], [file_name], meta)
-            # dataset.add_sample(frame, *new_sample)
         # now apply cuts and clean up the backgrounds
         for signal_name in signals:
             signal_def = input[signal_name]
@@ -508,7 +489,7 @@ class Analysis:
             new_df_names = []
 
             # maybe a bit ugly, sorry :(
-            def rename_and_cut(df_name, background=False):
+            def rename_and_cut(df_name: str, background: bool = False):
                 new_df = self._df[df_name]
                 if cut:
                     if not background:
@@ -517,8 +498,14 @@ class Analysis:
                         new_df = new_df.Filter(f"return !({cut});")
                 new_df_name = f"{df_name}_signal" if not background else f"{df_name}_bkg"
                 # print(f"creating {new_df_name} from {df_name} with background == {background}")
-                # FIXME: also add explicitly to dataset to be able to look up metadata!
                 self._df[new_df_name] = new_df
+                # also add explicitly to dataset to be able to look up metadata!
+                *tmp, old_meta = self._dataset.get_sample(df_name)
+                meta = old_meta.copy()
+                meta["category"] = category_name
+                new_sample = (tmp[0], tmp[1],meta)
+                self._dataset.add_sample(new_df_name, *new_sample)
+
                 return new_df_name
 
             for df_name in categories[signal_name]:
@@ -538,6 +525,8 @@ class Analysis:
                     new_df_names.append(rename_and_cut(df_name, True))
                 # overwrite old df name list
                 categories[category_name] = new_df_names
+
+        self._dataset.cleanup_keys()
 
         self._categories = categories
 
@@ -582,11 +571,7 @@ class Analysis:
                 self._snapshots[frame] = snapshot
                 self._booked_objects.append(snapshot)
                 # now transfer metadata
-                # need to get metadata from before the signal definition cut for correct weight
-                # FIXME: this has to be done as a change to the dataset at category creation time instead!!!
-                # old_frame = frame.removesuffix("_bkg").removesuffix("_signal"
-                old_frame = frame
-                *_, old_meta = self._dataset.get_sample(old_frame)
+                *_, old_meta = self._dataset.get_sample(frame)
                 meta = old_meta.copy()
                 meta["category"] = category_name
                 new_sample = ([tree_name], [file_name], meta)
@@ -633,12 +618,13 @@ class Analysis:
                     continue
 
                 # now transfer metadata
+                # XXX: should no longer be needed
                 # need to get metadata from before the signal definition cut for correct weight
-                old_frame = frame.removesuffix("_bkg").removesuffix("_signal")
-                *_, old_meta = self._dataset.get_sample(old_frame)
-                meta = old_meta.copy()
-                meta["category"] = category_name
-                new_sample = ([tree_name], [file_name], meta)
-                dataset.add_sample(frame, *new_sample)
+                # old_frame = frame.removesuffix("_bkg").removesuffix("_signal")
+                # *_, old_meta = self._dataset.get_sample(old_frame)
+                # meta = old_meta.copy()
+                # meta["category"] = category_name
+                # new_sample = ([tree_name], [file_name], meta)
+                # dataset.add_sample(frame, *new_sample)
         with open(meta_outname, "w") as out_file:
             out_file.write(dataset.to_json(indent=2))

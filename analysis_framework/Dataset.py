@@ -33,6 +33,17 @@ class Dataset():
         self._dataset[name] = sample
 
 
+    def cleanup_keys(self):
+        """Looks for <name>_signal and deletes <name> if found"""
+        cleanup_list = []
+        for key in self._dataset:
+            if key.endswith("_signal"):
+                old_key = key.removesuffix("_signal")
+                cleanup_list.append(old_key)
+
+        for old_key in cleanup_list:
+            self._dataset.pop(old_key)
+
     @staticmethod
     def _parse_path(path: str) -> str:
         raise RuntimeError
