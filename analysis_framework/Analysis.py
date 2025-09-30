@@ -329,12 +329,12 @@ class Analysis:
             y_max_overlay = max(h.GetMaximum(), y_max_overlay)
         legend.Draw()
         y_max = max(stack.GetMaximum(), y_max_overlay)
-        stack.SetMaximum(y_max*1.1)
+        stack.SetMaximum(y_max*1.25)
         x_length = abs(stack.GetXaxis().GetXmax() - stack.GetXaxis().GetXmin())
         if x_arrowr:
             x1 = x_arrowr
             x2 = x1 - 0.05 * x_length
-            y = 0.9 * y_max
+            y = 1.25 * y_max
             arrowr = ROOT.TArrow(x2, y, x1, y, 0.025, "<")
             arrowr.Draw()
             self._arrows[(params, "r")] = arrowr
@@ -344,7 +344,7 @@ class Analysis:
         if x_arrowl:
             x1 = x_arrowl
             x2 = x1 + 0.05 * x_length
-            y = 0.9 * y_max
+            y = 1.25 * y_max
             arrowl = ROOT.TArrow(x1, y, x2, y, 0.025, ">")
             arrowl.Draw()
             self._arrows[(params, "l")] = arrowl
@@ -374,6 +374,7 @@ class Analysis:
 
     def _calc_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0) -> tuple[dict[str, list[float]], dict[str, list[float]]]:
         # all processes should have the same *named* filters applied:
+        # the signal cut is in an unnamed filter and thus does not show up but this might break in the future
         names = list(list(self._df.values())[0].GetFilterNames())
         n_filters = len(names)
         # aggregate all the information
@@ -400,6 +401,30 @@ class Analysis:
             numbers[category_name] = nums
             errors2[category_name] = errs2
         return numbers, errors2
+
+
+    def post_selection_stats(self, category_name: str, m: int = 5, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, dir: str|None = None):
+        """Prints the <m> main contributions to category <category_name> and their weight for the given lumi and pol"""
+        # maybe also write the full result to a textfile...
+        frames = self._categories[category_name]
+        res = []
+        for k in frames:
+                reports = self._reports[k]
+                weight = self._dataset.get_weight(k, int_lumi, e_pol, p_pol)
+                report = list(reports)[-1]
+                n = report.GetPass()
+                n_w = n * weight
+                res.append((k, n_w, n, weight))
+        res.sort(key=lambda x: x[1], reverse=True)
+        text = f"name\tn_weighted\tn_true\tweight\n"
+        for r in res:
+            text += f"{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}\n"
+        print(text)
+        if dir:
+            Path(dir).mkdir(parents=True, exist_ok=True)
+            with open(f"{dir}/{category_name}.txt", "w") as outfile:
+                outfile.write(text)
+
 
 
     def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None):
@@ -436,7 +461,6 @@ class Analysis:
         # canvas.SetPadBottomMargin(0.3)
 
 
-    # TODO: adapt to use the new categories
     def print_reports(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0):
         """Print cut-flow report for each category/prefix"""
         numbers, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
