@@ -305,7 +305,11 @@ class Analysis:
                 h.Scale(weight)
                 scaled_cat_histograms.append(h)
             # sum up scaled category histograms, starting with the first one
-            h = sum(scaled_cat_histograms[1:], start=scaled_cat_histograms[0])
+            # broken for 2D histograms in ROOT...
+            # h = sum(scaled_cat_histograms[1:], start=scaled_cat_histograms[0])
+            h = scaled_cat_histograms[0].Clone()
+            for sh in scaled_cat_histograms[1:]:
+                h.Add(sh)
             if overlay and category_name in overlay:
                 h.SetLineColor(kP10[i].GetNumber())
                 h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
@@ -427,22 +431,30 @@ class Analysis:
 
 
 
-    def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None):
+    def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None, overlay: list[str]|None = None):
         numbers, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
         names = list(list(self._df.values())[0].GetFilterNames())
         n_filters = len(names)
         stack = ROOT.THStack()
         legend = ROOT.TLegend(0.6, 0.7, 1., 1,)
+        overlay_hists = []
+        name = "cut flow"
+        params = (name, int_lumi, e_pol, p_pol)
+        self._scaled_histograms[params] = {}
         for i, category_name in enumerate(self._categories):
             h = ROOT.TH1D("", "", n_filters+1, 0, n_filters+1)
             nums = numbers[category_name]
             for j, count in enumerate(nums):
                 h.Fill(j, count)
-            h.SetFillColor(kP10[i].GetNumber())
             legend.AddEntry(h, category_name, "f")
-            stack.Add(h)
-        name = "cut flow"
-        params = (name, int_lumi, e_pol, p_pol)
+            if overlay and category_name in overlay:
+                h.SetLineColor(kP10[i].GetNumber())
+                h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
+                overlay_hists.append(h)
+            else:
+                h.SetFillColor(kP10[i].GetNumber())
+                stack.Add(h)
+            self._scaled_histograms[params][category_name] = h
         legend.SetNColumns(2)
         self._legends[params] = legend
         self._stacks[params] = stack
@@ -450,6 +462,8 @@ class Analysis:
         self._canvases[params] = canvas
         stack.SetTitle(";;events")
         stack.Draw("hist")
+        for h in overlay_hists:
+            h.Draw(f"hist same")
         x_axis = stack.GetXaxis()
         for i, name in enumerate(["All"] + names):
             x_axis.SetBinLabel(i+1, str(name))
