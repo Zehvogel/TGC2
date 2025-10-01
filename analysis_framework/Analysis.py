@@ -5,6 +5,7 @@ from typing import Any
 from .Backports import kP10
 from collections import deque
 from pathlib import Path
+import os
 
 
 class Analysis:
@@ -335,7 +336,7 @@ class Analysis:
         y_max = max(stack.GetMaximum(), y_max_overlay)
         stack.SetMaximum(y_max*1.25)
         x_length = abs(stack.GetXaxis().GetXmax() - stack.GetXaxis().GetXmin())
-        if x_arrowr:
+        if x_arrowr is not None:
             x1 = x_arrowr
             x2 = x1 - 0.05 * x_length
             y = 1.25 * y_max
@@ -345,7 +346,7 @@ class Analysis:
             liner = ROOT.TLine(x1, 0, x1, y)
             liner.Draw()
             self._lines[(params, "r")] = liner
-        if x_arrowl:
+        if x_arrowl is not None:
             x1 = x_arrowl
             x2 = x1 + 0.05 * x_length
             y = 1.25 * y_max
@@ -475,7 +476,7 @@ class Analysis:
         # canvas.SetPadBottomMargin(0.3)
 
 
-    def print_reports(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0):
+    def print_reports(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, dir: str|None = None):
         """Print cut-flow report for each category/prefix"""
         numbers, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
         largest = max([num for nums in numbers.values() for num in nums])
@@ -486,11 +487,12 @@ class Analysis:
         max_digits = ceil(log10(largest+1)) #+ len(" 0e-00")
         max_name = max((len(name) for name in self._categories))
         offset = max(max_digits, max_name) + 1
+        output = ""
         line = ""
         for category_name in self._categories:
-            line_piece = f"{category_name: >{offset + len(' 0e-00')}}"
+            line_piece = f"{category_name: >{offset + len(' (0e-00)')}}"
             line += line_piece
-        print(line)
+        output += f"{line}\n"
         for i, name in enumerate(["All"] + names):
             line = ""
             for category_name in self._categories:
@@ -499,16 +501,21 @@ class Analysis:
                 line_piece = f"{round(num): >{offset}} ({err:.0e})"
                 # print(f"::{line_piece}::")
                 line += line_piece
-            print(line, name)
+            output += f"{line} {name}\n"
         line = ""
         for category_name in self._categories:
             eff = numbers[category_name][-1] / numbers[category_name][0] if numbers[category_name][0] > 0 else 0
             if eff >= 0.01:
-                line_piece = f"{eff: >{offset}.2f}"
+                line_piece = f"{eff: >{offset + len(' (0e-00)')}.2f}"
             else:
-                line_piece = f"{eff: >{offset}.0e}"
+                line_piece = f"{eff: >{offset + len(' (0e-00)')}.0e}"
             line += line_piece
-        print(line, "efficiency")
+        output += f"{line} efficiency\n"
+        print(output)
+        if dir:
+            Path(dir).mkdir(parents=True, exist_ok=True)
+            with open(f"{dir}/cutflow.txt", "w") as outfile:
+                outfile.write(output)
 
 
     def set_categories(self, input: dict[str, dict[str, str | None]]):
@@ -626,6 +633,8 @@ class Analysis:
                 meta["category"] = category_name
                 new_sample = ([tree_name], [file_name], meta)
                 dataset.add_sample(frame, *new_sample)
+        if "/" in meta_outname:
+            Path(meta_outname).parent.mkdir(parents=True, exist_ok=True)
         with open(meta_outname, "w") as out_file:
             out_file.write(dataset.to_json(indent=2))
 
@@ -668,13 +677,12 @@ class Analysis:
                     continue
 
                 # now transfer metadata
-                # XXX: should no longer be needed
-                # need to get metadata from before the signal definition cut for correct weight
-                # old_frame = frame.removesuffix("_bkg").removesuffix("_signal")
-                # *_, old_meta = self._dataset.get_sample(old_frame)
-                # meta = old_meta.copy()
-                # meta["category"] = category_name
-                # new_sample = ([tree_name], [file_name], meta)
-                # dataset.add_sample(frame, *new_sample)
+                *_, old_meta = self._dataset.get_sample(frame)
+                meta = old_meta.copy()
+                meta["category"] = category_name
+                new_sample = ([tree_name], [file_name], meta)
+                dataset.add_sample(frame, *new_sample)
+        if "/" in meta_outname:
+            Path(meta_outname).parent.mkdir(parents=True, exist_ok=True)
         with open(meta_outname, "w") as out_file:
             out_file.write(dataset.to_json(indent=2))
