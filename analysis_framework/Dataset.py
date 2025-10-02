@@ -42,7 +42,8 @@ class Dataset():
                 cleanup_list.append(old_key)
 
         for old_key in cleanup_list:
-            self._dataset.pop(old_key)
+            if old_key in self._dataset:
+                self._dataset.pop(old_key)
 
     @staticmethod
     def _parse_path(path: str) -> str:
