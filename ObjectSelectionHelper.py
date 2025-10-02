@@ -47,5 +47,8 @@ class ObjectSelectionHelper(Analysis):
         # self.truth_defined = True
         self.truth_categories = categories
 
-    def plot_resolution(self, column_name: str):
-        """Plot (unscaled) resolution"""
+
+    def define_deltas(self, name, lvec1, lvec2, categories):
+        self._define((f"{name}_delta_E", f"{lvec1}.energy() - {lvec2}.energy()"), categories)
+        self._define((f"{name}_delta_theta", f"{lvec1}.Theta() - {lvec2}.Theta()"), categories)
+        self._define((f"{name}_delta_phi", f"ROOT::Math::VectorUtil::DeltaPhi({lvec1}, {lvec2})"), categories)

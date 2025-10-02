@@ -2,3 +2,4 @@
 *.pdf
 cdb.log
 plots/
+*.root

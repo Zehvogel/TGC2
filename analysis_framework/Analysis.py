@@ -605,6 +605,7 @@ class Analysis:
         """Will be written out when the event loop runs"""
         # Need to avoid double counting, write out all non-suffixed dataframes or start from the categories
         dataset = Dataset()
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         categories = self._categories
         for category_name, frames in categories.items():
             for frame in frames:
@@ -687,6 +688,20 @@ class Analysis:
         with open(meta_outname, "w") as out_file:
             out_file.write(dataset.to_json(indent=2))
 
+
+    def _draw_canvas(self, h, params, draw_opt: str = "hist", legend = None, logY: bool = False, plot_dir: str|None = None):
+        canvas = ROOT.TCanvas()
+        self._canvases[params] = canvas
+        h.Draw(draw_opt)
+        if legend:
+            legend.Draw()
+        if logY:
+            canvas.SetLogy()
+        canvas.Draw()
+        if plot_dir:
+            Path(plot_dir).mkdir(parents=True, exist_ok=True)
+            canvas.SaveAs(f"{plot_dir}/{params}.pdf")
+
     
     def draw_unscaled_histograms(self, name: str, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):
         histograms = self._histograms[name]
@@ -701,14 +716,29 @@ class Analysis:
                 # get histogram
                 params = f"unscaled_{name}_{k}"
                 h = histograms[k]
-                # do the things
-                canvas = ROOT.TCanvas()
-                self._canvases[params] = canvas
-                h.SetTitle(f";{name};events")
-                h.Draw(draw_opt)
-                if logY:
-                    canvas.SetLogy()
-                canvas.Draw()
-                if plot_dir:
-                    Path(plot_dir).mkdir(parents=True, exist_ok=True)
-                    canvas.SaveAs(f"{plot_dir}/{params}.pdf")
+                h.SetTitle(f"{k};{name};events")
+                self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
+
+
+    def compare_histograms_unscaled(self, names: list[str], draw_opt: str = "nostack hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):
+        for category_name, dataframes in self._categories.items():
+            if categories and category_name not in categories:
+                # skip
+                continue
+            if len(dataframes) == 0:
+                # nothing to do for empty categories
+                continue
+            for k in dataframes:
+                legend = ROOT.TLegend(0.7, 0.8, 1., 1.)
+                stack = ROOT.THStack()
+                for i, name in enumerate(names):
+                    # get histogram, clone it, scale it, put it in a list
+                    h = self._histograms[name][k].GetPtr()
+                    h.SetLineColor(kP10[i].GetNumber())
+                    legend.AddEntry(h, name, "f")
+                    stack.Add(h)
+                params = f"comparison_{names[0]}_{k}"
+                # legend.SetNColumns(2)
+                self._legends[params] = legend
+                self._stacks[params] = stack
+                self._draw_canvas(stack, params, legend=legend, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
