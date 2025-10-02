@@ -281,8 +281,7 @@ class Analysis:
                     h.Write(f"h_{name}_{cat_name}")
 
 
-
-    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None):
+    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None, draw_legend: bool = True):
         histograms = self._histograms[name]
         stack = ROOT.THStack()
         params = (name, int_lumi, e_pol, p_pol)
@@ -332,7 +331,8 @@ class Analysis:
         for h in overlay_hists:
             h.Draw(f"{draw_opt} same")
             y_max_overlay = max(h.GetMaximum(), y_max_overlay)
-        legend.Draw()
+        if draw_legend:
+            legend.Draw()
         y_max = max(stack.GetMaximum(), y_max_overlay)
         stack.SetMaximum(y_max*1.25)
         x_length = abs(stack.GetXaxis().GetXmax() - stack.GetXaxis().GetXmin())
@@ -686,3 +686,29 @@ class Analysis:
             Path(meta_outname).parent.mkdir(parents=True, exist_ok=True)
         with open(meta_outname, "w") as out_file:
             out_file.write(dataset.to_json(indent=2))
+
+    
+    def draw_unscaled_histograms(self, name: str, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):
+        histograms = self._histograms[name]
+        for i, (category_name, dataframes) in enumerate(self._categories.items()):
+            if categories and category_name not in categories:
+                # skip
+                continue
+            if len(dataframes) == 0:
+                # nothing to do for empty categories
+                continue
+            for k in dataframes:
+                # get histogram
+                params = f"unscaled_{name}_{k}"
+                h = histograms[k]
+                # do the things
+                canvas = ROOT.TCanvas()
+                self._canvases[params] = canvas
+                h.SetTitle(f";{name};events")
+                h.Draw(draw_opt)
+                if logY:
+                    canvas.SetLogy()
+                canvas.Draw()
+                if plot_dir:
+                    Path(plot_dir).mkdir(parents=True, exist_ok=True)
+                    canvas.SaveAs(f"{plot_dir}/{params}.pdf")
