@@ -605,7 +605,8 @@ class Analysis:
         """Will be written out when the event loop runs"""
         # Need to avoid double counting, write out all non-suffixed dataframes or start from the categories
         dataset = Dataset()
-        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        if not "root:" in out_dir:
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
         categories = self._categories
         for category_name, frames in categories.items():
             for frame in frames:
@@ -620,7 +621,7 @@ class Analysis:
                     args.append(selection)
                 snapshot_options = ROOT.RDF.RSnapshotOptions()
                 snapshot_options.fLazy = True
-                snapshot_options.fCompressionLevel = 9
+                snapshot_options.fCompressionLevel = 6
                 snapshot_options.fCompressionAlgorithm = ROOT.RCompressionSetting.EAlgorithm.kZSTD
                 if no_rvec:
                     snapshot_options.fVector2RVec = False
@@ -702,7 +703,7 @@ class Analysis:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
             canvas.SaveAs(f"{plot_dir}/{params}.pdf")
 
-    
+
     def draw_unscaled_histograms(self, name: str, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):
         histograms = self._histograms[name]
         for i, (category_name, dataframes) in enumerate(self._categories.items()):

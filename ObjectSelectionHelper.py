@@ -42,7 +42,9 @@ class ObjectSelectionHelper(Analysis):
         self._define(("true_quark2_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark2_idx")), categories)
         self._define(("true_leptonic_W_lvec", "true_lep_lvec + true_nu_lvec"), categories)
         self._define(("true_hadronic_W_lvec", "true_quark1_lvec + true_quark2_lvec"), categories)
-        self._define(("true_iso_lep_charge", "MCParticlesSkimmed.PDG[true_lep_idx] > 0. ? -1. : 1."), categories)
+        self._define(("true_lep_charge", "MCParticlesSkimmed.PDG[true_lep_idx] > 0. ? -1. : 1."), categories)
+        self._define(("true_beam_e_lvec", make_lvec_M("MCParticlesSkimmed", "4")), categories)
+        self._define(("true_beam_p_lvec", make_lvec_M("MCParticlesSkimmed", "5")), categories)
 
         # self.truth_defined = True
         self.truth_categories = categories
