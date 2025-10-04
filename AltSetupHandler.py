@@ -88,9 +88,11 @@ class AltSetupHandler():
 
     @staticmethod
     def get_var_from_name_1d(name: str):
-        num = name.split("_")[-1]
+        parts = name.split("_")
+        num = parts[-1]
         num = num.replace("m", "-")
-        return float(num)
+        sign = -1. if parts[-2] == "neg" else 1.
+        return sign * float(num)
 
 
     def get_pars(self) -> list[str]:

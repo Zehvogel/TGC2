@@ -212,13 +212,13 @@ class Analysis:
 
     # TODO: extend to allow to select categories
     # TODO: reconsider if this is needed
-    def get_mean(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0) -> float:
-        weighted_counts, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
-        last_filter = list(weighted_counts.keys())[-1]
-        counts = weighted_counts[last_filter]
-        count = sum(counts)
-        _sum = self.get_sum(name, int_lumi, e_pol, p_pol)
-        return _sum / count
+    # def get_mean(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0) -> float:
+    #     weighted_counts, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
+    #     last_filter = list(weighted_counts.keys())[-1]
+    #     counts = weighted_counts[last_filter]
+    #     count = sum(counts)
+    #     _sum = self.get_sum(name, int_lumi, e_pol, p_pol)
+    #     return _sum / count
 
 
     def store_means(self, variable_names: list[str], output_path: str, opening_option: str = "recreate"):
