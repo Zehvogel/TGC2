@@ -3,3 +3,13 @@
 cdb.log
 plots/
 *.root
+*.mod
+*.smod
+*.la
+*.lo
+*.o
+*.makefile
+*.so*
+*.log
+*.a
+*.lai

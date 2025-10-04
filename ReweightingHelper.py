@@ -49,9 +49,39 @@ class ReweightingHelper(Analysis):
             self.define_only_on(categories, f"weight_{name}", f"mc_sqme_{name} / mc_sqme_nominal")
 
 
-    def define_optimal_observables(self, names: str):
+    def define_optimal_observables_truth(self, names: list[str], truth_categories: list[str]):
         for name in names:
             var = AltSetupHandler.get_var_from_name_1d(name)
-            self.Define(f"O_{name}", f"{1/var} * (reco_sqme_12_nominal + reco_sqme_21_nominal - reco_sqme_12_{name} - reco_sqme_21_{name}) / (reco_sqme_12_nominal + reco_sqme_21_nominal)")
-            self._define((f"mc_O_{name}", f"{1/var} * (mc_sqme_nominal - mc_sqme_{name}) / mc_sqme_nominal"), self._signal_categories)
+            self._define((f"mc_O_{name}", f"{1/var} * (mc_sqme_{name} - mc_sqme_nominal) / mc_sqme_nominal"), truth_categories)
 
+
+    def define_optimal_observables_reco(self, names: list[str]):
+        for name in names:
+            var = AltSetupHandler.get_var_from_name_1d(name)
+            self._define((f"mc_O_{name}", f"{1/var} * (mc_sqme_{name} - mc_sqme_nominal) / mc_sqme_nominal"), truth_categories)
+
+
+    # TODO: some kind of prefix etc. would be good to add everywhere when the variations also come in
+    def calc_reco_sqme(self, columns: list[str]):
+        momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
+        momenta2 = momenta.copy()
+        # switch the jets
+        momenta2[-2], momenta2[-1] = momenta2[-1], momenta2[-2]
+        self.Define("reco_ME_flv", "iso_lep_charge > 0 ? 1 : 2")
+        self.Define("reco_ME_momenta_12", f"""
+            std::vector<double>({{
+                    125., 0., 0., 125.,
+                    125., 0., 0., -125.,
+                    {','.join(momenta)}
+            }})
+        """)
+        self.Define("reco_ME_momenta_21", f"""
+            std::vector<double>({{
+                    125., 0., 0., 125.,
+                    125., 0., 0., -125.,
+                    {','.join(momenta2)}
+            }})
+        """)
+        for name, omw in self._omega_wrappers.items():
+            self.Define(f"reco_sqme_12_{name}", omw, ["reco_ME_momenta_12", "reco_ME_flv"])
+            self.Define(f"reco_sqme_21_{name}", omw, ["reco_ME_momenta_21", "reco_ME_flv"])
