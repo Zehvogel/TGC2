@@ -35,16 +35,21 @@ class ReweightingHelper(Analysis):
             self._omega_wrappers[name] = ROOT.OmegaWrapper(model_parser.get_parameters_list())
 
 
-    def book_weights(self, categories: list[str], columns: list[str]):
+    # TODO: optimisation: when used for OO purposes only book one set of alt setups
+    def book_truth_sqme(self, categories: list[str], columns: list[str], prefix: str = ""):
         momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
-        self.define_only_on(categories, "mc_ME_flv", "true_lep_charge > 0 ? 1 : 2")
-        self.define_only_on(categories, "mc_ME_momenta", f"""
+        self.define_only_on(categories, f"{prefix}mc_ME_flv", "true_lep_charge > 0 ? 1 : 2")
+        self.define_only_on(categories, f"{prefix}mc_ME_momenta", f"""
                     std::vector<double>({{
                             {','.join(momenta)}
                     }})
                     """)
         for name, omw in self._omega_wrappers.items():
-            self.define_only_on(categories, f"mc_sqme_{name}", omw, ["mc_ME_momenta", "mc_ME_flv"])
+            self.define_only_on(categories, f"{prefix}mc_sqme_{name}", omw, [f"{prefix}mc_ME_momenta", f"{prefix}mc_ME_flv"])
+
+
+    def book_weights(self, categories: list[str]):
+        for name, omw in self._omega_wrappers.items():
             # divide by recalculated nominal as all the ILD values are broken...
             self.define_only_on(categories, f"weight_{name}", f"mc_sqme_{name} / mc_sqme_nominal")
 

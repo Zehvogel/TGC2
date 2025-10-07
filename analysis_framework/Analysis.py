@@ -192,7 +192,6 @@ class Analysis:
         ROOT.RDF.RunGraphs(self._booked_objects)
 
 
-    # TODO: reconsider if this is needed
     def get_sum(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None) -> float:
         # ideally I could also make a functor that does this, but there is this
         # additional issue that histograms need to be cloned and numbers not etc.
@@ -739,6 +738,7 @@ class Analysis:
                     legend.AddEntry(h, name, "f")
                     stack.Add(h)
                 params = f"comparison_{names[0]}_{k}"
+                stack.SetTitle(k)
                 # legend.SetNColumns(2)
                 self._legends[params] = legend
                 self._stacks[params] = stack
