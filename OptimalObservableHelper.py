@@ -12,6 +12,19 @@ class OptimalObservableHelper(Analysis):
         super().__init__(dataset)
 
 
+    def define_optimal_observables(self, o_name: str, names: list[str], var_names: list[str], categories: list[str]|None = None):
+        """Defines OOs, if names contains multiple names it averages over them."""
+        nominal = [f"{name}_nominal" for name in names]
+        combined_names = []
+        for var_name in var_names:
+            var = AltSetupHandler.get_var_from_name_1d(var_name)
+            varied = [f"{name}_{var_name}" for name in names]
+            comb_name = f"{o_name}_{var_name}"
+            self._define((comb_name, f"{1/var} * (({'+'.join(varied)}) - ({'+'.join(nominal)})) / ({'+'.join(nominal)})"), categories)
+            combined_names.append(comb_name)
+        return combined_names
+
+
     # exists both here and in the reweight helper :/
     def define_optimal_observables_truth(self, names: list[str], truth_categories: list[str]):
         for name in names:
