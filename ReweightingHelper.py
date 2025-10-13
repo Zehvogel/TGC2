@@ -35,17 +35,57 @@ class ReweightingHelper(Analysis):
             self._omega_wrappers[name] = ROOT.OmegaWrapper(model_parser.get_parameters_list())
 
 
-    # TODO: optimisation: when used for OO purposes only book one set of alt setups
-    def book_truth_sqme(self, categories: list[str], columns: list[str], prefix: str = ""):
+    def book_sqme(self, columns: list[str], charge_col: str, name: str, alt_setups: list[str]|None = None, categories: list[str]|None = None):
         momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
-        self.define_only_on(categories, f"{prefix}mc_ME_flv", "true_lep_charge > 0 ? 1 : 2")
-        self.define_only_on(categories, f"{prefix}mc_ME_momenta", f"""
+        self._define((f"{name}_ME_momenta", f"""
                     std::vector<double>({{
                             {','.join(momenta)}
                     }})
-                    """)
-        for name, omw in self._omega_wrappers.items():
-            self.define_only_on(categories, f"{prefix}mc_sqme_{name}", omw, [f"{prefix}mc_ME_momenta", f"{prefix}mc_ME_flv"])
+                    """), categories)
+        self._define((f"{name}_ME_flv", f"{charge_col} > 0 ? 1 : 2"), categories)
+        for var_name, omw in self._omega_wrappers.items():
+            if alt_setups and var_name not in alt_setups:
+                continue
+            self._define((f"{name}_sqme_{var_name}", omw, [f"{name}_ME_momenta", f"{name}_ME_flv"]), categories)
+
+
+    # # TODO: optimisation: when used for OO purposes only book one set of alt setups
+    # def book_truth_sqme(self, categories: list[str], columns: list[str], prefix: str = ""):
+    #     momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
+    #     self.define_only_on(categories, f"{prefix}mc_ME_flv", "true_lep_charge > 0 ? 1 : 2")
+    #     self.define_only_on(categories, f"{prefix}mc_ME_momenta", f"""
+    #                 std::vector<double>({{
+    #                         {','.join(momenta)}
+    #                 }})
+    #                 """)
+    #     for name, omw in self._omega_wrappers.items():
+    #         self.define_only_on(categories, f"{prefix}mc_sqme_{name}", omw, [f"{prefix}mc_ME_momenta", f"{prefix}mc_ME_flv"])
+
+
+    # # TODO: some kind of prefix etc. would be good to add everywhere when the variations also come in
+    # def calc_reco_sqme(self, columns: list[str]):
+    #     momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
+    #     momenta2 = momenta.copy()
+    #     # switch the jets
+    #     momenta2[-2], momenta2[-1] = momenta2[-1], momenta2[-2]
+    #     self.Define("reco_ME_flv", "iso_lep_charge > 0 ? 1 : 2")
+    #     self.Define("reco_ME_momenta_12", f"""
+    #         std::vector<double>({{
+    #                 125., 0., 0., 125.,
+    #                 125., 0., 0., -125.,
+    #                 {','.join(momenta)}
+    #         }})
+    #     """)
+    #     self.Define("reco_ME_momenta_21", f"""
+    #         std::vector<double>({{
+    #                 125., 0., 0., 125.,
+    #                 125., 0., 0., -125.,
+    #                 {','.join(momenta2)}
+    #         }})
+    #     """)
+    #     for name, omw in self._omega_wrappers.items():
+    #         self.Define(f"reco_sqme_12_{name}", omw, ["reco_ME_momenta_12", "reco_ME_flv"])
+    #         self.Define(f"reco_sqme_21_{name}", omw, ["reco_ME_momenta_21", "reco_ME_flv"])
 
 
     def book_weights(self, categories: list[str]):
@@ -64,29 +104,3 @@ class ReweightingHelper(Analysis):
         for name in names:
             var = AltSetupHandler.get_var_from_name_1d(name)
             self.Define(f"O_{name}", f"{1/var} * ((reco_sqme_12_{name} + reco_sqme_21_{name}) - (reco_sqme_12_nominal + reco_sqme_21_nominal)) / (reco_sqme_12_nominal + reco_sqme_21_nominal)")
-
-
-    # TODO: some kind of prefix etc. would be good to add everywhere when the variations also come in
-    def calc_reco_sqme(self, columns: list[str]):
-        momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
-        momenta2 = momenta.copy()
-        # switch the jets
-        momenta2[-2], momenta2[-1] = momenta2[-1], momenta2[-2]
-        self.Define("reco_ME_flv", "iso_lep_charge > 0 ? 1 : 2")
-        self.Define("reco_ME_momenta_12", f"""
-            std::vector<double>({{
-                    125., 0., 0., 125.,
-                    125., 0., 0., -125.,
-                    {','.join(momenta)}
-            }})
-        """)
-        self.Define("reco_ME_momenta_21", f"""
-            std::vector<double>({{
-                    125., 0., 0., 125.,
-                    125., 0., 0., -125.,
-                    {','.join(momenta2)}
-            }})
-        """)
-        for name, omw in self._omega_wrappers.items():
-            self.Define(f"reco_sqme_12_{name}", omw, ["reco_ME_momenta_12", "reco_ME_flv"])
-            self.Define(f"reco_sqme_21_{name}", omw, ["reco_ME_momenta_21", "reco_ME_flv"])
