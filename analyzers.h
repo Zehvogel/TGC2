@@ -36,6 +36,27 @@ RVec<int> subset_to_mask(const PFOVec& orig_col, const IDVec& subset_col) {
     for (const auto& id : subset_col) {
         res[id.index] = 1;
     }
-    
+
     return res;
 }
+
+RVec<int> mcp_mask_to_pfo_mask(const RVec<int>& mcp_mask, const PFOVec& pfo_col, const IDVec& from, const IDVec& to, const RVec<float>& weights)
+{
+    RVec<int> pfo_mask(pfo_col.size(), 0);
+    for (std::size_t i = 0; i < weights.size(); i++) {
+        int j = to[i].index;
+        if (mcp_mask[j]) {
+            auto weight = weights[i];
+            float c_weight = float( int(weight) / 10000 ) / 1000.f;
+            if (c_weight > 0.5) {
+                pfo_mask[from[i].index] = 1;
+            }
+        }
+    }
+    return pfo_mask;
+}
+// for each RecoMCTruth relation
+//  take j = _to.index and check if mcp_mask[j] == 1
+//  if yes:
+//  take weight, take cluster weight from weight, check if > 0.5
+//  take k = _from.index, and mark pfo_mask[k] == 1
