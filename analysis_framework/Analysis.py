@@ -28,6 +28,8 @@ class Analysis:
     _booked_objects: list[Any] = []
     _arrows = {}
     _lines = {}
+    _plot_label = None
+    _t = ROOT.TLatex()
 
 
     def __init__(self, dataset: Dataset):
@@ -50,6 +52,10 @@ class Analysis:
                 for df_name in category:
                     df = self._df[df_name]
                     yield df_name, df
+
+
+    def set_plot_label(self, label):
+        self._plot_label = label
 
 
     def _get_frame_names(self, categories: list[str]|None):
@@ -357,6 +363,8 @@ class Analysis:
             self._lines[(params, "l")] = linel
         if logY:
             canvas.SetLogy()
+        if self._plot_label:
+            self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
         canvas.Draw()
         if plot_dir:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
@@ -468,6 +476,8 @@ class Analysis:
         for i, name in enumerate(["All"] + names):
             x_axis.SetBinLabel(i+1, str(name))
         legend.Draw()
+        if self._plot_label:
+            self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
         canvas.SetLogy()
         canvas.Draw()
         if plot_dir:
