@@ -292,6 +292,8 @@ class Analysis:
         params = (name, int_lumi, e_pol, p_pol)
         self._scaled_histograms[params] = {}
         legend = ROOT.TLegend(0.6, 0.7, 1., 1,)
+        # legend = ROOT.TLegend(0.84, 0.15, 1., 1,)
+        legend.SetNColumns(2)
         overlay_hists = []
         # FIXME: put the calculation of the histograms into a separate method and only calculate them here if needed
         for i, (category_name, dataframes) in enumerate(self._categories.items()):
@@ -325,7 +327,6 @@ class Analysis:
             legend.AddEntry(h, category_name, "f")
             # store h so that it does not get deleted
             self._scaled_histograms[params][category_name] = h
-        legend.SetNColumns(2)
         self._legends[params] = legend
         self._stacks[params] = stack
         canvas = ROOT.TCanvas()
@@ -336,8 +337,6 @@ class Analysis:
         for h in overlay_hists:
             h.Draw(f"{draw_opt} same")
             y_max_overlay = max(h.GetMaximum(), y_max_overlay)
-        if draw_legend:
-            legend.Draw()
         y_max = max(stack.GetMaximum(), y_max_overlay)
         stack.SetMaximum(y_max*1.25)
         x_length = abs(stack.GetXaxis().GetXmax() - stack.GetXaxis().GetXmin())
@@ -365,6 +364,8 @@ class Analysis:
             canvas.SetLogy()
         if self._plot_label:
             self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
+        if draw_legend:
+            legend.Draw()
         canvas.Draw()
         if plot_dir:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
