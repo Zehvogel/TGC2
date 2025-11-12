@@ -30,6 +30,7 @@ class Analysis:
     _lines = {}
     _plot_label = None
     _t = ROOT.TLatex()
+    _pol_labels = {}
 
 
     def __init__(self, dataset: Dataset):
@@ -286,6 +287,17 @@ class Analysis:
                     h.Write(f"h_{name}_{cat_name}")
 
 
+    # def _get_pol_label(self, e_pol: float, p_pol: float):
+    #     params = (e_pol, p_pol)
+    #     if params in self._pol_labels:
+    #         return self._pol_labels[params]
+    #     else:
+    #         pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol})"
+    #         pol_label = ROOT.TLatex(0, 0, pol_label_text)
+    #         self._pol_labels[params] = pol_label
+    #         return pol_label
+
+
     def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None, draw_legend: bool = True):
         histograms = self._histograms[name]
         stack = ROOT.THStack()
@@ -338,7 +350,8 @@ class Analysis:
             h.Draw(f"{draw_opt} same")
             y_max_overlay = max(h.GetMaximum(), y_max_overlay)
         y_max = max(stack.GetMaximum(), y_max_overlay)
-        stack.SetMaximum(y_max*1.25)
+        new_max = y_max * 1.25 if not logY else y_max * 10
+        stack.SetMaximum(new_max)
         x_length = abs(stack.GetXaxis().GetXmax() - stack.GetXaxis().GetXmin())
         if x_arrowr is not None:
             x1 = x_arrowr
@@ -366,6 +379,8 @@ class Analysis:
             self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
         if draw_legend:
             legend.Draw()
+        pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol})"
+        self._t.DrawLatexNDC(0.25, 0.85, pol_label_text)
         canvas.Draw()
         if plot_dir:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
@@ -508,6 +523,8 @@ class Analysis:
             for category_name in self._categories:
                 num = numbers[category_name][i]
                 err = sqrt(errors2[category_name][i])
+                # make error relative
+                err /= num if num != 0. else 1.
                 line_piece = f"{round(num): >{offset}} ({err:.0e})"
                 # print(f"::{line_piece}::")
                 line += line_piece
