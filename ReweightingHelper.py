@@ -35,7 +35,7 @@ class ReweightingHelper(Analysis):
             self._omega_wrappers[name] = ROOT.OmegaWrapper(model_parser.get_parameters_list())
 
 
-    def book_sqme(self, columns: list[str], charge_col: str, name: str, alt_setups: list[str]|None = None, categories: list[str]|None = None):
+    def book_sqme(self, columns: list[str], charge_col: str, name: str, alt_setups: list[str]|None = None, categories: list[str]|None = None, hels: bool = False):
         momenta = [f"{col}.energy(), {col}.Px(), {col}.Py(), {col}.Pz()" for col in columns]
         self._define((f"{name}_ME_momenta", f"""
                     std::vector<double>({{
@@ -46,7 +46,13 @@ class ReweightingHelper(Analysis):
         for var_name, omw in self._omega_wrappers.items():
             if alt_setups and var_name not in alt_setups:
                 continue
-            self._define((f"{name}_sqme_{var_name}", omw, [f"{name}_ME_momenta", f"{name}_ME_flv"]), categories)
+            # self._define((f"{name}_sqme_{var_name}", omw, [f"{name}_ME_momenta", f"{name}_ME_flv"]), categories)
+            if not hels:
+                self._define((f"{name}_sqme_{var_name}", ROOT.OmegaWrapperFunctor(omw), [f"{name}_ME_momenta", f"{name}_ME_flv"]), categories)
+            else:
+                hels_name = f"{name}_sqme_hels_{var_name}"
+                self._define((hels_name, ROOT.OmegaWrapperHelsFunctor(omw), [f"{name}_ME_momenta", f"{name}_ME_flv"]), categories)
+                self._define((f"{name}_sqme_{var_name}", f"std::accumulate({hels_name}.begin(), {hels_name}.end(), 0.) / 4."), categories)
 
 
     # # TODO: optimisation: when used for OO purposes only book one set of alt setups
@@ -99,6 +105,9 @@ class ReweightingHelper(Analysis):
             var = AltSetupHandler.get_var_from_name_1d(name)
             self._define((f"mc_O_{name}", f"{1/var} * (mc_sqme_{name} - mc_sqme_nominal) / mc_sqme_nominal"), truth_categories)
 
+    def define_pol_optimal_observables_truth(self, truth_categories: list[str]):
+        self._define(("mc_O_pol1", "(-mc_sqme_hels_nominal[0] -mc_sqme_hels_nominal[1] +mc_sqme_hels_nominal[2] +mc_sqme_hels_nominal[3]) / (4. * mc_sqme_nominal)"), truth_categories)
+        self._define(("mc_O_pol2", "(-mc_sqme_hels_nominal[0] +mc_sqme_hels_nominal[1] -mc_sqme_hels_nominal[2] +mc_sqme_hels_nominal[3]) / (4. * mc_sqme_nominal)"), truth_categories)
 
     def define_optimal_observables_reco(self, names: list[str]):
         for name in names:
