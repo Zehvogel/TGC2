@@ -1,6 +1,7 @@
 #include <complex>
 #include <vector>
 #include <iostream>
+#include <array>
 
 
 #define OMEGA_FUN(name) __ ## opr_ww_i1 ## _MOD_ ## name
@@ -34,6 +35,21 @@ class OmegaWrapper {
         return res / 4.0;
     }
 
+    std::array<double, 4> sqme_hels(double* lvec, int flv)
+    {
+        init_parameters();
+        new_event(lvec);
+
+        std::array<double, 4> res = {0};
+        for (int i = 0; i < 4; i++) {
+            for (int j = 1; j <= 16; j++) {
+                int idx = i*16 + j;
+                res[i] += OMEGA_FUN(color_sum)(flv, idx);
+            }
+        }
+
+        return res;
+    }
 
     private:
     const std::vector<double> m_parameters;
@@ -52,5 +68,15 @@ struct OmegaWrapperFunctor {
 
     double operator()(std::vector<double> lvec, int flv) {
         return m_omw.sqme(lvec.data(), flv);
-    } 
+    }
+};
+
+struct OmegaWrapperHelsFunctor {
+    OmegaWrapper m_omw;
+
+    OmegaWrapperHelsFunctor(OmegaWrapper omw) : m_omw(omw) {}
+
+    std::array<double,4> operator()(std::vector<double> lvec, int flv) {
+        return m_omw.sqme_hels(lvec.data(), flv);
+    }
 };
