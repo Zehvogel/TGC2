@@ -34,6 +34,7 @@ class Analysis:
 
 
     def __init__(self, dataset: Dataset):
+        ROOT.gInterpreter.Declare("#include \"utils.h\"")
         self._dataset = dataset
         for name, tree_name, files in dataset.get_samples():
             # filter out meta only
@@ -514,12 +515,17 @@ class Analysis:
         offset = max(max_digits, max_name) + 1
         output = ""
         line = ""
+        output_csv = []
+        line_csv = []
         for category_name in self._categories:
             line_piece = f"{category_name: >{offset + len(' (0e-00)')}}"
             line += line_piece
+            line_csv.append(category_name)
         output += f"{line}\n"
+        output_csv.append(",".join(line_csv))
         for i, name in enumerate(["All"] + names):
             line = ""
+            line_csv = []
             for category_name in self._categories:
                 num = numbers[category_name][i]
                 err = sqrt(errors2[category_name][i])
@@ -528,8 +534,11 @@ class Analysis:
                 line_piece = f"{round(num): >{offset}} ({err:.0e})"
                 # print(f"::{line_piece}::")
                 line += line_piece
+                line_csv.append(str(round(num)))
             output += f"{line} {name}\n"
+            output_csv.append(",".join(line_csv))
         line = ""
+        line_csv = []
         for category_name in self._categories:
             eff = numbers[category_name][-1] / numbers[category_name][0] if numbers[category_name][0] > 0 else 0
             if eff >= 0.01:
@@ -537,12 +546,16 @@ class Analysis:
             else:
                 line_piece = f"{eff: >{offset + len(' (0e-00)')}.0e}"
             line += line_piece
+            line_csv.append(str(eff))
         output += f"{line} efficiency\n"
+        output_csv.append(",".join(line_csv))
         print(output)
         if dir:
             Path(dir).mkdir(parents=True, exist_ok=True)
             with open(f"{dir}/cutflow.txt", "w") as outfile:
                 outfile.write(output)
+            with open(f"{dir}/cutflow.csv", "w") as outfile:
+                outfile.write("\n".join(output_csv))
 
 
     def set_categories(self, input: dict[str, dict[str, str | None]]):
@@ -746,6 +759,28 @@ class Analysis:
                 h = histograms[k]
                 h.SetTitle(f"{k};{name};events")
                 self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
+
+
+    def draw_summed_unscaled_histograms(self, name: str, category: str, draw_opt: str = "hist", logY: bool = False, plot_dir: str|None = None, RMS90: bool = False):
+        histograms = self._histograms[name]
+        dataframes = self._categories[category]
+        params = f"unscaled_sum_{name}_{category}"
+        for i, k in enumerate(dataframes):
+            # get histogram
+            if i == 0:
+                h = histograms[k].Clone()
+            else:
+                h.Add(histograms[k].GetPtr())
+        # h.SetTitle(f"{k};{name};events")
+        if not logY:
+            h.SetMinimum(0)
+        # FIXME: not a stack but this thing is only there to keep stuff alive anyway
+        self._stacks[params] = h
+        if RMS90:
+            rms90 = ROOT.rms90(h)
+            print(rms90)
+        self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
+        return h
 
 
     def compare_histograms_unscaled(self, names: list[str], draw_opt: str = "nostack hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):

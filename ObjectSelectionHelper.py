@@ -45,6 +45,16 @@ class ObjectSelectionHelper(Analysis):
         self._define(("true_lep_charge", "MCParticlesSkimmed.PDG[true_lep_idx] > 0. ? -1. : 1."), categories)
         self._define(("true_beam_e_lvec", make_lvec_M("MCParticlesSkimmed", "4")), categories)
         self._define(("true_beam_p_lvec", make_lvec_M("MCParticlesSkimmed", "5")), categories)
+        self._define(("true_isr1_lvec", make_lvec_M("MCParticlesSkimmed", "6")), categories)
+        self._define(("true_isr2_lvec", make_lvec_M("MCParticlesSkimmed", "7")), categories)
+
+        self._define(("true_quark1_postCRC_idx", "return StableArgsort(MCParticlesSkimmed.generatorStatus == 2 && abs(MCParticlesSkimmed.PDG) < 6, [] (const auto a, const auto b) {return a > b;} )[2]"), categories)
+        self._define(("true_quark2_postCRC_idx", "true_quark1_postCRC_idx+1"), categories)
+
+        self._define(("true_quark1_postCRC_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark1_postCRC_idx")), categories)
+        self._define(("true_quark2_postCRC_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark2_postCRC_idx")), categories)
+
+        self._define(("true_hadronic_W_postCRC_lvec", "true_quark1_postCRC_lvec + true_quark2_postCRC_lvec"), categories)
 
         # self.truth_defined = True
         self.truth_categories = categories
@@ -54,3 +64,7 @@ class ObjectSelectionHelper(Analysis):
         self._define((f"{name}_delta_E", f"{lvec1}.energy() - {lvec2}.energy()"), categories)
         self._define((f"{name}_delta_theta", f"{lvec1}.Theta() - {lvec2}.Theta()"), categories)
         self._define((f"{name}_delta_phi", f"ROOT::Math::VectorUtil::DeltaPhi({lvec1}, {lvec2})"), categories)
+        self._define((f"{name}_delta_P", f"{lvec1}.P() - {lvec2}.P()"), categories)
+        self._define((f"{name}_delta_Pt", f"{lvec1}.Pt() - {lvec2}.Pt()"), categories)
+        self._define((f"{name}_delta_Pz", f"{lvec1}.Pz() - {lvec2}.Pz()"), categories)
+        self._define((f"{name}_delta_P_scaled", f"{name}_delta_P / std::pow({lvec2}.P(), 1.5)"), categories)
