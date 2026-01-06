@@ -1,4 +1,5 @@
 from analysis_framework.Analysis import Analysis
+from analysis_framework.Dataset import Dataset
 from AltSetupHandler import AltSetupHandler
 from itertools import combinations_with_replacement
 import ROOT
@@ -8,8 +9,8 @@ from pathlib import Path
 
 class OptimalObservableHelper(Analysis):
 
-    def __init__(self, dataset):
-        super().__init__(dataset)
+    def __init__(self, dataset: Dataset, friend_datasets: list[Dataset] = []):
+        super().__init__(dataset, friend_datasets)
 
 
     def define_optimal_observables(self, o_name: str, names: list[str], var_names: list[str], categories: list[str]|None = None):
@@ -98,14 +99,15 @@ class OptimalObservableHelper(Analysis):
         return oo_means
 
 
-    def make_slope_graphs(self, oo_names: list[str], pars: list[str], alt_config_names:
-                          list[str], oo_means: dict[str, float]) -> dict:
+    @staticmethod
+    def make_slope_graphs(oo_names: list[str], pars: list[str], x_points:
+                          list[float], oo_means: dict[str, float]) -> dict:
         graphs = {}
         for oo in oo_names:
             for par in pars:
-                vars = [var for var in alt_config_names if par in var]
                 nominal = oo_means[f"{oo}_weight_nominal"]
-                x = [AltSetupHandler.get_var_from_name_1d(var) for var in vars]
+                x = x_points.copy()
+                vars = [AltSetupHandler.make_name(par, p) for p in x_points]
                 y = [oo_means[f"{oo}_weight_{var}"] / nominal for var in vars]
                 x.append(0.)
                 y.append(1.)
@@ -115,18 +117,17 @@ class OptimalObservableHelper(Analysis):
                 for v in vals:
                     g.AddPoint(v[0], v[1])
                 g.SetTitle(f"{oo};{par}; #overline{{O}} / #overline{{O}}_{{0}}")
-                graphs[f"mc_{oo}_{par}"] = g
+                graphs[f"{oo}_{par}"] = g
         return graphs
 
     @staticmethod
-    def get_slopes(oo_names: list[str], pars: list[str], oo_means: dict[str, float]) -> dict:
+    def get_slopes(oo_names: list[str], pars: list[str], oo_means: dict[str, float], g: float = 1e-8) -> dict:
         slopes = {}
         for oo in oo_names:
             nominal = oo_means[f"{oo}_weight_nominal"]
             for par in pars:
-                var = f"{par}_pos_1em08"
+                var = AltSetupHandler.make_name(par, g)
                 variation = oo_means[f"{oo}_weight_{var}"]
-                g = 1e-8
                 slope = (variation - nominal) / (g * nominal)
                 slopes[f"{oo}_{par}"] = slope
         return slopes
@@ -138,7 +139,13 @@ class OptimalObservableHelper(Analysis):
         n_events = self.get_sum("weight_nominal", int_lumi=lumi, e_pol=e_pol, p_pol=p_pol, categories=categories)
 
         means = self.calc_oo_means(oo_names, weight_names, e_pol, p_pol, categories)
-        means_vec = np.asarray([means[f"{oo}_weight_nominal"] for oo in oo_names])
+
+        # TODO: also get other means here
+        means_list = {w_name: [means[f"{oo}_{w_name}"] for oo in oo_names] for w_name in weight_names}
+
+        # means_vec = np.asarray([means[f"{oo}_weight_nominal"] for oo in oo_names])
+        means_vec = np.asarray(means_list["weight_nominal"])
+
 
         n_obs = len(oo_names)
 
@@ -166,6 +173,7 @@ class OptimalObservableHelper(Analysis):
         text += f"{means_vec.tolist()}\n"
         text += f"{slope_mat.tolist()}\n"
         text += f"{C.tolist()}\n"
+        text += f"{means_list}\n"
         print(text)
         if dir:
             Path(dir).mkdir(parents=True, exist_ok=True)

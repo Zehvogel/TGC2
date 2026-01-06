@@ -33,14 +33,31 @@ class Analysis:
     _pol_labels = {}
 
 
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, friend_datasets: list[Dataset] = []):
         ROOT.gInterpreter.Declare("#include \"utils.h\"")
         self._dataset = dataset
         for name, tree_name, files in dataset.get_samples():
             # filter out meta only
             if tree_name == "" and files == [""]:
                 continue
-            df = ROOT.RDataFrame(tree_name, files)
+            if not friend_datasets:
+                df = ROOT.RDataFrame(tree_name, files)
+            else:
+                chain = ROOT.TChain(tree_name)
+                for file in files:
+                    chain.Add(file)
+                for fds in friend_datasets:
+                    try:
+                        f_trees, f_files, _ = fds.get_sample(name)
+                        f_chain = ROOT.TChain(f_trees[0])
+                        for f_file in f_files:
+                            f_chain.Add(f_file)
+                        chain.AddFriend(f_chain)
+                    except KeyError:
+                        print(f"missing friend for sample: {name}")
+                # TODO: do I have to keep alive the chains myself? :(
+                df = ROOT.RDataFrame(chain)
+            df = df.DefinePerSample("hel_idx", "unsigned int idx = 0; idx += rdfsampleinfo_.Contains(\"eL\") ? 0 : 2; idx += rdfsampleinfo_.Contains(\"pL\") ? 0 : 1; return idx;")
             self._df[name] = df
 
 
@@ -125,6 +142,10 @@ class Analysis:
                 self._categories[category_name].append(k)
             except KeyError:
                 self._categories[category_name] = [k]
+
+
+    def get_categories(self):
+        return self._categories.keys()
 
 
     def init_parameters(self, params: list[tuple[str, str, str]]):
@@ -641,7 +662,7 @@ class Analysis:
         return len(df_names) == 0
 
 
-    def book_snapshots(self, tree_name: str, out_dir: str, meta_outname: str, column_list = None, no_rvec = False):
+    def book_snapshots(self, tree_name: str, out_dir: str, meta_outname: str, column_list = None, no_rvec = False, write_categories: list[str]|None = None):
         """Will be written out when the event loop runs"""
         # Need to avoid double counting, write out all non-suffixed dataframes or start from the categories
         dataset = Dataset()
@@ -649,6 +670,9 @@ class Analysis:
             Path(out_dir).mkdir(parents=True, exist_ok=True)
         categories = self._categories
         for category_name, frames in categories.items():
+            if write_categories and category_name not in write_categories:
+                # skip
+                continue
             for frame in frames:
                 df = self._df[frame]
                 file_name = f"{out_dir}/{category_name}_{frame}.snapshot.root"
@@ -761,16 +785,21 @@ class Analysis:
                 self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
 
 
-    def draw_summed_unscaled_histograms(self, name: str, category: str, draw_opt: str = "hist", logY: bool = False, plot_dir: str|None = None, RMS90: bool = False):
+    def _make_summed_unscaled_histogram(self, name: str, category: str):
         histograms = self._histograms[name]
         dataframes = self._categories[category]
-        params = f"unscaled_sum_{name}_{category}"
         for i, k in enumerate(dataframes):
             # get histogram
             if i == 0:
                 h = histograms[k].Clone()
             else:
                 h.Add(histograms[k].GetPtr())
+        return h
+
+
+    def draw_summed_unscaled_histograms(self, name: str, category: str, draw_opt: str = "hist", logY: bool = False, plot_dir: str|None = None, RMS90: bool = False):
+        params = f"unscaled_sum_{name}_{category}"
+        h = self._make_summed_unscaled_histogram(name, category)
         # h.SetTitle(f"{k};{name};events")
         if not logY:
             h.SetMinimum(0)
@@ -781,6 +810,23 @@ class Analysis:
             print(rms90)
         self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
         return h
+
+
+    def compare_summed_histograms_unscaled(self, names: list[str], category: str, draw_opt: str = "nostack hist", logY: bool = False, plot_dir: str|None = None):
+        legend = ROOT.TLegend(0.7, 0.8, 1., 1.)
+        stack = ROOT.THStack()
+        for i, name in enumerate(names):
+            params = f"unscaled_sum_comp_{name}_{category}"
+            h = self._make_summed_unscaled_histogram(name, category)
+            # just need to keep these alive somewhere
+            self._stacks[params] = h
+            h.SetLineColor(kP10[i].GetNumber())
+            legend.AddEntry(h, name, "f")
+            stack.Add(h)
+        params = f"comparison_{'_'.join(names)}"
+        self._legends[params] = legend
+        self._stacks[params] = stack
+        self._draw_canvas(stack, params, legend=legend, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
 
 
     def compare_histograms_unscaled(self, names: list[str], draw_opt: str = "nostack hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):

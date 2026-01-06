@@ -20,7 +20,8 @@ class AltSetupHandler():
         self._make_alt_configs()
 
 
-    def make_name(self, parameter: str, var: float) -> str:
+    @staticmethod
+    def make_name(parameter: str, var: float) -> str:
         # need to get rid of - to use as c++ identifier later
         alt_name = f"{parameter}_{'pos' if var > 0. else 'neg'}_{abs(var):.0e}".replace("-", "m")
         return alt_name
@@ -99,7 +100,7 @@ class AltSetupHandler():
         return list(self._sm_ref.keys())
 
 
-    # TODO also use this above maybe 
+    # TODO also use this above maybe
     # TODO super ugly refactor candidate
     def get_variations_nd(self):
         nd = len(self._sm_ref.keys())

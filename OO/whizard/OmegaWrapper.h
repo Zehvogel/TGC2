@@ -76,7 +76,10 @@ struct OmegaWrapperHelsFunctor {
 
     OmegaWrapperHelsFunctor(OmegaWrapper omw) : m_omw(omw) {}
 
-    std::array<double,4> operator()(std::vector<double> lvec, int flv) {
-        return m_omw.sqme_hels(lvec.data(), flv);
+    // std::array<double,4> operator()(std::vector<double> lvec, int flv) {
+    // can not write an std::array to file without making an additional dictionary...
+    std::vector<double> operator()(std::vector<double> lvec, int flv) {
+        auto res = m_omw.sqme_hels(lvec.data(), flv);
+        return std::vector<double>(res.begin(), res.end());
     }
 };

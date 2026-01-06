@@ -94,10 +94,14 @@ class ReweightingHelper(Analysis):
     #         self.Define(f"reco_sqme_21_{name}", omw, ["reco_ME_momenta_21", "reco_ME_flv"])
 
 
-    def book_weights(self, categories: list[str]):
+    def book_weights(self, categories: list[str], alt_setups: list[str]|None = None, hels: bool = False):
         for name, omw in self._omega_wrappers.items():
+            if alt_setups and name not in alt_setups:
+                continue
             # divide by recalculated nominal as all the ILD values are broken...
             self.define_only_on(categories, f"weight_{name}", f"mc_sqme_{name} / mc_sqme_nominal")
+            if hels:
+                self.define_only_on(categories, f"weight_hel_{name}", f"mc_sqme_hels_{name}[hel_idx] / mc_sqme_hels_nominal[hel_idx]")
 
 
     def define_optimal_observables_truth(self, names: list[str], truth_categories: list[str]):
