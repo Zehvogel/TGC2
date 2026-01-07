@@ -108,17 +108,37 @@ class OptimalObservableHelper(Analysis):
                 nominal = oo_means[f"{oo}_weight_nominal"]
                 x = x_points.copy()
                 vars = [AltSetupHandler.make_name(par, p) for p in x_points]
-                y = [oo_means[f"{oo}_weight_{var}"] / nominal for var in vars]
+                # y = [oo_means[f"{oo}_weight_{var}"] / nominal for var in vars]
+                # y = [oo_means[f"{oo}_weight_{var}"] / nominal -1. for var in vars]
+                y = [(oo_means[f"{oo}_weight_{var}"] / nominal -1.) * 100  for var in vars]
                 x.append(0.)
-                y.append(1.)
+                # y.append(1.)
+                y.append(0.)
                 vals = sorted(zip(x, y), key=lambda a: a[0])
                 # print(vals)
                 g = ROOT.TGraph()
                 for v in vals:
                     g.AddPoint(v[0], v[1])
-                g.SetTitle(f"{oo};{par}; #overline{{O}} / #overline{{O}}_{{0}}")
+                # g.SetTitle(f"{oo};{par}; #overline{{O}} / #overline{{O}}_{{0}}")
                 graphs[f"{oo}_{par}"] = g
         return graphs
+
+
+    @staticmethod
+    def make_ratio_graph(graph, func):
+        res_graph = ROOT.TGraph()
+        for i in range(graph.GetN()):
+            x = graph.GetPointX(i)
+            y = graph.GetPointY(i)
+            fx = func(x)
+            # r_y = y-fx
+            r_y = (y-fx) * 1e4 # only use 4 here as the values that get subtracted are already scaled by 100
+            # r_y = (y / fx -1.) * 1e6
+            # r_y = ((y+1.) / (fx+1.) -1.) * 1e6
+            # r_y = (y / fx -1.) * 1e6 if fx != 0. else 0.
+            res_graph.AddPoint(x, r_y)
+        return res_graph
+
 
     @staticmethod
     def get_slopes(oo_names: list[str], pars: list[str], oo_means: dict[str, float], g: float = 1e-8) -> dict:
