@@ -6,11 +6,10 @@
 
 #define OMEGA_FUN(name) __ ## opr_ww_i1 ## _MOD_ ## name
 
-
 extern "C" {
-    void OMEGA_FUN(new_event)(const double*);
-    double OMEGA_FUN(color_sum)(int& flv, int& hel);
-    void OMEGA_FUN(init)(const double*, int& scheme);
+    void OMEGA_FUN(new_event)(const double *);
+    double OMEGA_FUN(color_sum)(int &flv, int &hel);
+    void OMEGA_FUN(init)(const double *, int &scheme);
 }
 
 class OmegaWrapper {

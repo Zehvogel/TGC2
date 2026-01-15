@@ -11,6 +11,7 @@ class OptimalObservableHelper(Analysis):
 
     def __init__(self, dataset: Dataset, friend_datasets: list[Dataset] = []):
         super().__init__(dataset, friend_datasets)
+        ROOT.gInterpreter.Declare("#include \"pol_helper.h\"")
 
 
     def define_optimal_observables(self, o_name: str, names: list[str], var_names: list[str], categories: list[str]|None = None):
@@ -23,6 +24,35 @@ class OptimalObservableHelper(Analysis):
             comb_name = f"{o_name}_{var_name}"
             self._define((comb_name, f"{1/var} * (({'+'.join(varied)}) - ({'+'.join(nominal)})) / ({'+'.join(nominal)})"), categories)
             combined_names.append(comb_name)
+        return combined_names
+
+
+    def define_optimal_observables_polarised(self, o_name: str, names: list[str], var_names: list[str], categories: list[str]|None = None, nom_epol: float = 0., nom_ppol: float = 0., add_pol_oo: bool = False):
+        """Defines OOs, if names contains multiple names it averages over them."""
+        nominal = [f"{name}_nominal" for name in names]
+        nominal_pol_w = [f"(0.25 * (1 + {nom_epol} * gPolHelper.e_pol({hel_idx})) * (1 + {nom_ppol} * gPolHelper.p_pol({hel_idx})) * {n}[{hel_idx}])" for n in nominal for hel_idx in range(4)]
+        combined_names = []
+        for var_name in var_names:
+            var = AltSetupHandler.get_var_from_name_1d(var_name)
+            varied = [f"{name}_{var_name}" for name in names]
+            # need to prefix every hel_sqme[hel_idx]
+            # with 0.25 * (1 + nom_e_pol + gPolHelper.e_pol(hel_idx)) * (1 + nom_p_pol * gPolHelper.p_pol(hel_idx))
+            # BUT I need to iterate hel_idx here myself and not use the global one because the OO is not allowed to know it!
+            varied_pol_w = [f"(0.25 * (1 + {nom_epol} * gPolHelper.e_pol({hel_idx})) * (1 + {nom_ppol} * gPolHelper.p_pol({hel_idx})) * {v}[{hel_idx}])" for v in varied for hel_idx in range(4)]
+            comb_name = f"{o_name}_{var_name}"
+            self._define((comb_name, f"{1/var} * (({'+'.join(varied_pol_w)}) - ({'+'.join(nominal_pol_w)})) / ({'+'.join(nominal_pol_w)})"), categories)
+            combined_names.append(comb_name)
+
+        if add_pol_oo:
+            # need to split nominal sqmes into helicities and average over the names
+            sqme_hel_parts = []
+            n = len(names)
+            for i in range(4):
+                sqme_hel_parts.append("+".join(nominal_pol_w[i*n:(i+1)*n]))
+            self._define((f"{o_name}_epol", f"((({sqme_hel_parts[2]} + {sqme_hel_parts[3]}) / (1 + {nom_epol})) - (({sqme_hel_parts[0]} + {sqme_hel_parts[1]}) / (1 - {nom_epol}))) / ({'+'.join(sqme_hel_parts)})"), categories=categories)
+            self._define((f"{o_name}_ppol", f"((({sqme_hel_parts[1]} + {sqme_hel_parts[3]}) / (1 + {nom_ppol})) - (({sqme_hel_parts[0]} + {sqme_hel_parts[2]}) / (1 - {nom_ppol}))) / ({'+'.join(sqme_hel_parts)})"), categories=categories)
+            combined_names.append(f"{o_name}_epol")
+            combined_names.append(f"{o_name}_ppol")
         return combined_names
 
 
@@ -60,8 +90,11 @@ class OptimalObservableHelper(Analysis):
         return res
 
 
-    def book_weight_sums(self, names: list[str], categories: list[str]|None = None) -> list[str]:
-        weight_names = [f"weight_{name}" for name in names]
+    def book_weight_sums(self, names: list[str], categories: list[str]|None = None, hel: bool = False) -> list[str]:
+        if not hel:
+            weight_names = [f"weight_{name}" for name in names]
+        else:
+            weight_names = [f"weight_hel_{name}" for name in names]
         for w_name in weight_names:
             self.book_sum(w_name, w_name, categories=categories)
         return weight_names
@@ -101,16 +134,17 @@ class OptimalObservableHelper(Analysis):
 
     @staticmethod
     def make_slope_graphs(oo_names: list[str], pars: list[str], x_points:
-                          list[float], oo_means: dict[str, float]) -> dict:
+                          list[float], oo_means: dict[str, float], hel: bool = False) -> dict:
         graphs = {}
+        w_name = "weight" if not hel else "weight_hel"
         for oo in oo_names:
             for par in pars:
-                nominal = oo_means[f"{oo}_weight_nominal"]
+                nominal = oo_means[f"{oo}_{w_name}_nominal"]
                 x = x_points.copy()
                 vars = [AltSetupHandler.make_name(par, p) for p in x_points]
                 # y = [oo_means[f"{oo}_weight_{var}"] / nominal for var in vars]
                 # y = [oo_means[f"{oo}_weight_{var}"] / nominal -1. for var in vars]
-                y = [(oo_means[f"{oo}_weight_{var}"] / nominal -1.) * 100  for var in vars]
+                y = [(oo_means[f"{oo}_{w_name}_{var}"] / nominal -1.) * 100  for var in vars]
                 x.append(0.)
                 # y.append(1.)
                 y.append(0.)
@@ -141,22 +175,24 @@ class OptimalObservableHelper(Analysis):
 
 
     @staticmethod
-    def get_slopes(oo_names: list[str], pars: list[str], oo_means: dict[str, float], g: float = 1e-8) -> dict:
+    def get_slopes(oo_names: list[str], pars: list[str], oo_means: dict[str, float], g: float = 1e-8, hel: bool = False) -> dict:
         slopes = {}
+        w_name = "weight" if not hel else "weight_hel"
         for oo in oo_names:
-            nominal = oo_means[f"{oo}_weight_nominal"]
+            nominal = oo_means[f"{oo}_{w_name}_nominal"]
             for par in pars:
                 var = AltSetupHandler.make_name(par, g)
-                variation = oo_means[f"{oo}_weight_{var}"]
+                variation = oo_means[f"{oo}_{w_name}_{var}"]
                 slope = (variation - nominal) / (g * nominal)
                 slopes[f"{oo}_{par}"] = slope
         return slopes
 
 
-    def print_fit_input(self, oo_names: list[str], weight_names: list[str], e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None, dir: str|None = None, name: str = "default"):
+    def print_fit_input(self, oo_names: list[str], weight_names: list[str], e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None, dir: str|None = None, name: str = "default", hel: bool =  False):
         # normalize everything to 1 ab_inv
         lumi = 1000
-        n_events = self.get_sum("weight_nominal", int_lumi=lumi, e_pol=e_pol, p_pol=p_pol, categories=categories)
+        w_name = "weight" if not hel else "weight_hel"
+        n_events = self.get_sum(f"{w_name}_nominal", int_lumi=lumi, e_pol=e_pol, p_pol=p_pol, categories=categories)
 
         means = self.calc_oo_means(oo_names, weight_names, e_pol, p_pol, categories)
 
@@ -164,7 +200,7 @@ class OptimalObservableHelper(Analysis):
         means_list = {w_name: [means[f"{oo}_{w_name}"] for oo in oo_names] for w_name in weight_names}
 
         # means_vec = np.asarray([means[f"{oo}_weight_nominal"] for oo in oo_names])
-        means_vec = np.asarray(means_list["weight_nominal"])
+        means_vec = np.asarray(means_list[f"{w_name}_nominal"])
 
 
         n_obs = len(oo_names)
@@ -172,7 +208,7 @@ class OptimalObservableHelper(Analysis):
         # TODO: replace with something more robust
         pars = [oo.split("_")[-3] for oo in oo_names]
         n_pars = len(pars)
-        slopes = self.get_slopes(oo_names, pars, means)
+        slopes = self.get_slopes(oo_names, pars, means, hel=True)
         slope_list = list(slopes.values())
         slope_mat = np.zeros((n_obs, n_pars))
         for i in range(n_obs):
