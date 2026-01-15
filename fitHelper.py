@@ -7,20 +7,18 @@ import numpy as np
 def load_fit_input(input_path):
     with open(input_path) as infile:
         lines = infile.readlines()
-    n_per_ab = literal_eval(lines[1])
-    nominal_means = literal_eval(lines[2])
-    slopes = literal_eval(lines[3])
-    Cov_O = literal_eval(lines[4])
-    means_list = literal_eval(lines[5])
+    pars = literal_eval(lines[1])
+    n_per_ab = literal_eval(lines[2])
+    nominal_means = literal_eval(lines[3])
+    slopes = literal_eval(lines[4])
+    Cov_O = literal_eval(lines[5])
+    means_list = literal_eval(lines[6])
     print(lines)
-    return n_per_ab, nominal_means, slopes, Cov_O, means_list
+    return pars, n_per_ab, nominal_means, slopes, Cov_O, means_list
 
 
-def create_fit_model(model_name, workspace, coupling_names, nominal_means, slopes, Cov_mean_O):
-    couplings = []
-    for i in range(3):
-        cpl = ROOT.RooRealVar(coupling_names[i], coupling_names[i], 0., -0.5, 0.5)
-        couplings.append(cpl)
+def create_fit_model(model_name, workspace, pars, nominal_means, slopes, Cov_mean_O):
+    parameters = [ROOT.RooRealVar(par, par, 0., -0.5, 0.5) for par in pars]
 
     obs = []
     mus_exp = []
@@ -28,13 +26,12 @@ def create_fit_model(model_name, workspace, coupling_names, nominal_means, slope
     rel_changes = []
     for i, m in enumerate(nominal_means):
         sigma = np.sqrt(Cov_mean_O[i,i])
-        o = ROOT.RooRealVar(f"O_{i+1}", f"O_{i+1}", m, m-5*sigma, m+5*sigma)
+        o = ROOT.RooRealVar(f"O_{pars[i]}", f"O_{pars[i]}", m, m-5*sigma, m+5*sigma)
         obs.append(o)
 
         vars = []
-        for j in range(3):
-            # var = ROOT.RooProduct(f"var_{i}_{j}", f"var_{i}_{j}", couplings[j], ROOT.RooFit.RooConst(slopes[j][i]))
-            var = ROOT.RooProduct(f"var_{i}_{j}", f"var_{i}_{j}", couplings[j], ROOT.RooFit.RooConst(slopes[i][j]))
+        for j in range(len(parameters)):
+            var = ROOT.RooProduct(f"var_{i}_{j}", f"var_{i}_{j}", parameters[j], ROOT.RooFit.RooConst(slopes[i][j]))
             vars.append(var)
         all_vars += vars
         nominal_exp = ROOT.RooFit.RooConst(m)
@@ -48,28 +45,29 @@ def create_fit_model(model_name, workspace, coupling_names, nominal_means, slope
 
     n_obs = len(nominal_means)
     Cov_mean_O_root = ROOT.TMatrixDSym(n_obs)
-    for i, j in combinations_with_replacement(range(3), r=2):
+    for i, j in combinations_with_replacement(range(n_obs), r=2):
         Cov_mean_O_root[i][j] = Cov_mean_O[i, j]
         Cov_mean_O_root[j][i] = Cov_mean_O[i, j]
 
     model = ROOT.RooMultiVarGaussian(model_name, model_name, obs, mus_exp, Cov_mean_O_root)
     workspace.Import(model)
-    workspace.saveSnapshot("nominal_parameters", couplings)
+    workspace.saveSnapshot("nominal_parameters", parameters)
     workspace.saveSnapshot("nominal_observables", obs)
     workspace.defineSet("observables", obs)
-    workspace.defineSet("parameters", couplings)
+    workspace.defineSet("parameters", parameters)
 
 
-def make_datasets(workspace, names, means_list):
+def make_datasets(workspace, names, pars, means_list):
     obs = workspace.set("observables")
     for name in names:
         means = means_list[name]
-        print(obs)
-        for i in range(len(obs)):
-            obs[f"O_{i+1}"] = means[i]
+        # print(obs)
+        for i, p in enumerate(pars):
+            obs[f"O_{p}"] = means[i]
             # print(obs[f"O_{i+1}"])
         ds = ROOT.RooDataSet(name, name, obs)
         ds.add(obs)
+        print(ds)
         workspace.Import(ds)
 
 
