@@ -121,15 +121,11 @@ class OptimalObservableHelper(Analysis):
                 self.book_histogram_1D(oo_w_name, oo_w_name, ("", "", 250, -5, 5), categories=categories)
 
 
-    def calc_oo_means(self, oo_names: list[str], weight_names: list[str], e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None, vary_pol: bool = False) -> dict[str, float]:
-        oo_means = {}
-        if vary_pol:
-            # need to do very painful backward parsing because original interface did not have this in mind
-            # hardcode this for now
-            pol_vary_par = "g1z"
-            pol_var_list = []
+    @staticmethod
+    def get_pol_var_list(weight_names: list[str], vary_par: str) -> list[float]:
+        pol_var_list = []
         for w_name in weight_names:
-            if vary_pol and pol_vary_par in w_name:
+            if vary_par in w_name:
                 var_name = w_name.removeprefix("weight_").removeprefix("hel_")
                 var = AltSetupHandler.get_var_from_name_1d(var_name)
                 if var == 3e-4:
@@ -139,7 +135,17 @@ class OptimalObservableHelper(Analysis):
                     # FIXME: needs interface change :(
                     var = -2.5e-4
                 pol_var_list.append(var)
+        return pol_var_list
 
+
+    def calc_oo_means(self, oo_names: list[str], weight_names: list[str], e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None, vary_pol: bool = False) -> dict[str, float]:
+        oo_means = {}
+        if vary_pol:
+            # need to do very painful backward parsing because original interface did not have this in mind
+            # hardcode this for now
+            pol_vary_par = "g1z"
+            pol_var_list = self.get_pol_var_list(weight_names, pol_vary_par)
+        for w_name in weight_names:
             w_sum = self.get_sum(w_name, e_pol=e_pol, p_pol=p_pol, categories=categories)
             for oo in oo_names:
                 oo_w_name = f"{oo}_{w_name}"
@@ -220,19 +226,28 @@ class OptimalObservableHelper(Analysis):
         return slopes
 
 
-    def print_fit_input(self, oo_names: list[str], weight_names: list[str], pars: list[str], e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None, dir: str|None = None, name: str = "default", hel: bool =  False):
+    def print_fit_input(self, oo_names: list[str], ext_weight_names: list[str], pars: list[str], e_pol: float = 0.0, p_pol: float = 0.0, categories: list[str]|None = None, dir: str|None = None, name: str = "default", hel: bool =  False):
         # normalize everything to 1 ab_inv
         lumi = 1000
         w_name = "weight" if not hel else "weight_hel"
         n_events = self.get_sum(f"{w_name}_nominal", int_lumi=lumi, e_pol=e_pol, p_pol=p_pol, categories=categories)
 
+        weight_names = ext_weight_names.copy()
+
         means = self.calc_oo_means(oo_names, weight_names, e_pol, p_pol, categories, vary_pol=hel)
 
         # TODO: also get other means here
-        means_list = {w_name: [means[f"{oo}_{w_name}"] for oo in oo_names] for w_name in weight_names}
+        # need to find a way to somehow also add the pol variations to the weight_names
+        pol_var_list = self.get_pol_var_list(weight_names, "g1z") if hel else []
+        for var in pol_var_list:
+            weight_names.append(f"weight_hel_{AltSetupHandler.make_name('epol', var)}")
+            weight_names.append(f"weight_hel_{AltSetupHandler.make_name('ppol', var)}")
+
+        means_dict = {w_name: [means[f"{oo}_{w_name}"] for oo in oo_names] for w_name in weight_names}
+
 
         # means_vec = np.asarray([means[f"{oo}_weight_nominal"] for oo in oo_names])
-        means_vec = np.asarray(means_list[f"{w_name}_nominal"])
+        means_vec = np.asarray(means_dict[f"{w_name}_nominal"])
 
 
         n_obs = len(oo_names)
@@ -262,7 +277,7 @@ class OptimalObservableHelper(Analysis):
         text += f"{means_vec.tolist()}\n"
         text += f"{slope_mat.tolist()}\n"
         text += f"{C.tolist()}\n"
-        text += f"{means_list}\n"
+        text += f"{means_dict}\n"
         print(text)
         if dir:
             Path(dir).mkdir(parents=True, exist_ok=True)
