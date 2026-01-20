@@ -8,9 +8,9 @@ from AltSetupHandler import AltSetupHandler
 class ReweightingHelper(Analysis):
 
     _omega_wrappers: dict
-    def __init__(self, dataset):
+    def __init__(self, *args, **kwargs):
         self._omega_wrappers = {}
-        super().__init__(dataset)
+        super().__init__(*args, **kwargs)
 
 
     def initialise_omega_wrappers(self, configurations: dict[str,dict[str, float]]):

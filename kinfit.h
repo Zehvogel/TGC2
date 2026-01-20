@@ -30,7 +30,20 @@ struct enuWFit {
     enuWFit(std::vector<double> eErr, std::vector<double> thetaErr, std::vector<double> phiErr, double xAngle, double eCMS, double mW, double width_W)
         : errE(eErr), errTheta(thetaErr), errPhi(phiErr), x_angle(xAngle), e_cms(eCMS), m_W(mW), width_W(width_W) {}
 
-    FitResult operator()(lvec in_obj1, lvec in_obj2, lvec in_obj3, lvec in_obj4) {
+    FitResult operator()(lvec in_obj1, lvec in_obj2, lvec in_obj3, lvec in_obj4, bool doFitFlag) {
+        if (!doFitFlag) {
+            FitResult result;
+            result.prob = -1.;
+            result.chi2 = -1.;
+            result.error = -1;
+            result.dof = -1;
+            result.iterations = -1;
+            result.obj1 = in_obj1;
+            result.obj2 = in_obj2;
+            result.obj3 = in_obj3;
+            result.obj4 = in_obj4;
+            return result;
+        }
         return doFit(in_obj1, in_obj2, in_obj3, in_obj4);
     }
 
@@ -84,7 +97,7 @@ struct enuWFit {
         fitter.addConstraint(py_constraint);
         fitter.addConstraint(pz_constraint);
         fitter.addConstraint(w_constraint);
-        fitter.addConstraint(w_constraint2);
+        // fitter.addConstraint(w_constraint2);
 
         // fitter.initialize();
         // fitter.setDebug(4);
