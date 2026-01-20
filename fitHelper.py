@@ -18,28 +18,21 @@ def load_fit_input(input_path):
     return pars, n_per_ab, nominal_means, slopes, Cov_O, means_list
 
 
-def create_models(workspace, pars, nominal_means, slopes, Cov_mean_O):
-    parameters = [ROOT.RooRealVar(par, par, 0., -0.5, 0.5) for par in pars]
-
-    obs = []
+def build_model(workspace, parameters, obs, nominal_means, slopes, Cov_mean_O, rename_var_suffix: str = ""):
     mus_exp = []
     all_vars = []
     rel_changes = []
     for i, m in enumerate(nominal_means):
-        sigma = np.sqrt(Cov_mean_O[i,i])
-        o = ROOT.RooRealVar(f"O_{pars[i]}", f"O_{pars[i]}", m, m-5*sigma, m+5*sigma)
-        obs.append(o)
-
         vars = []
         for j in range(len(parameters)):
-            var = ROOT.RooProduct(f"var_{i}_{j}", f"var_{i}_{j}", parameters[j], ROOT.RooFit.RooConst(slopes[i][j]))
+            var = ROOT.RooProduct(f"var_{i}_{j}{rename_var_suffix}", f"var_{i}_{j}{rename_var_suffix}", parameters[j], ROOT.RooFit.RooConst(slopes[i][j]))
             vars.append(var)
         all_vars += vars
         nominal_exp = ROOT.RooFit.RooConst(m)
         # mu_exp = ROOT.RooAddition(f"mu_exp_{i}", f"mu_exp_{i}", [nominal_exp] + vars)
-        rel_change = ROOT.RooAddition(f"rel_change_{i}", f"rel_change_{i}", [ROOT.RooFit.RooConst(1.0)] + vars)
+        rel_change = ROOT.RooAddition(f"rel_change_{i}{rename_var_suffix}", f"rel_change_{i}{rename_var_suffix}", [ROOT.RooFit.RooConst(1.0)] + vars)
         rel_changes.append(rel_change)
-        mu_exp = ROOT.RooProduct(f"mu_exp_{i}", f"mu_exp_{i}", rel_change, nominal_exp)
+        mu_exp = ROOT.RooProduct(f"mu_exp_{i}{rename_var_suffix}", f"mu_exp_{i}{rename_var_suffix}", rel_change, nominal_exp)
         mus_exp.append(mu_exp)
 
     # print(all_vars)
@@ -50,12 +43,24 @@ def create_models(workspace, pars, nominal_means, slopes, Cov_mean_O):
         Cov_mean_O_root[i][j] = Cov_mean_O[i, j]
         Cov_mean_O_root[j][i] = Cov_mean_O[i, j]
 
-    fit_model = ROOT.RooMultiVarGaussian("fit_model", "fit_model", obs, mus_exp, Cov_mean_O_root)
+    fit_model = ROOT.RooMultiVarGaussian(f"fit_model{rename_var_suffix}", f"fit_model{rename_var_suffix}", obs, mus_exp, Cov_mean_O_root)
     workspace.Import(fit_model, Silence=True)
 
-    mean_vec = ROOT.TVectorD(n_obs)
-    for i in range(n_obs):
-        mean_vec[i] = nominal_means[i]
+
+def create_models(workspace, pars, nominal_means, slopes, Cov_mean_O):
+    parameters = [ROOT.RooRealVar(par, par, 0., -0.5, 0.5) for par in pars]
+
+    obs = []
+    for i in range(len(nominal_means)):
+        sigma = np.sqrt(Cov_mean_O[i,i])
+        o = ROOT.RooRealVar(f"O_{pars[i]}", f"O_{pars[i]}", nominal_means[i], nominal_means[i]-5*sigma, nominal_means[i]+5*sigma)
+        obs.append(o)
+
+    build_model(workspace, parameters, obs, nominal_means, slopes, Cov_mean_O, rename_var_suffix="")
+
+    # mean_vec = ROOT.TVectorD(n_obs)
+    # for i in range(n_obs):
+    #     mean_vec[i] = nominal_means[i]
 
     # gen_model = ROOT.RooMultiVarGaussian("gen_model", "gen_model", obs, mean_vec, Cov_mean_O_root)
     # workspace.Import(gen_model)
@@ -64,6 +69,88 @@ def create_models(workspace, pars, nominal_means, slopes, Cov_mean_O):
     workspace.saveSnapshot("nominal_observables", obs)
     workspace.defineSet("observables", obs)
     workspace.defineSet("parameters", parameters)
+
+
+def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: bool = True):
+    w = ROOT.RooWorkspace("w")
+    pars_list = []
+    n_per_ab = []
+    nominal_means = []
+    slopes = []
+    Cov_mean_O = []
+    means_list = []
+    for lumi_share, e_pol, p_pol in runs:
+        fit_input_file = f"{input_path}/fit-inputs-{e_pol}-{p_pol}-{oo_name}_oo.txt"
+        fit_inputs = load_fit_input(fit_input_file)
+        pars_list.append(fit_inputs[0])
+        n_per_ab.append(fit_inputs[1])
+        nominal_means.append(fit_inputs[2])
+        slopes.append(fit_inputs[3])
+        Cov_O = fit_inputs[4]
+        Cov_mean_O.append(np.asarray(Cov_O) / (n_per_ab[-1] * run_ab * lumi_share))
+        means_list.append(fit_inputs[5])
+    
+    # build common obs and pars, assume they are the same for all runs
+    n = len(nominal_means[0])
+    # max_sigmas = [0.] * n
+    # for i in range(n):
+    #     for j in range(len(runs)):
+    #         sigma = np.sqrt(Cov_mean_O[j][i,i])
+    #         if sigma > max_sigmas[i]:
+    #             max_sigmas[i] = sigma
+    obs = []
+    for i in range(n):
+        # o = ROOT.RooRealVar(f"O_{pars_list[0][i]}", f"O_{pars_list[0][i]}", nominal_means[0][i], nominal_means[0][i]-5*max_sigmas[i], nominal_means[0][i]+5*max_sigmas[i])
+        # super annoying to do correctly so just choose something big
+        o = ROOT.RooRealVar(f"O_{pars_list[0][i]}", f"O_{pars_list[0][i]}", nominal_means[0][i], -5., 5.)
+        obs.append(o)
+    pars = pars_list[0].copy()
+    if split_helicity_reversal:
+        pars = pars[:-2]  # remove pol pars
+    fit_parameters = [ROOT.RooRealVar(par, par, 0., -0.5, 0.5) for par in pars]
+    e_pol_fit_parameters = []
+    p_pol_fit_parameters = []
+    if split_helicity_reversal:
+        e_pol_fit_parameters = [
+            ROOT.RooRealVar("e_pol_L", "e_pol_L", 0., -0.5, 0.5),
+            ROOT.RooRealVar("e_pol_R", "e_pol_R", 0., -0.5, 0.5)
+            ]
+        p_pol_fit_parameters = [
+            ROOT.RooRealVar("p_pol_L", "p_pol_L", 0., -0.5, 0.5),
+            ROOT.RooRealVar("p_pol_R", "p_pol_R", 0., -0.5, 0.5)
+            ]
+    all_fit_parameters = fit_parameters + e_pol_fit_parameters + p_pol_fit_parameters
+
+
+    models = []
+    for i, r_conf in enumerate(runs):
+        lumi_share, e_pol, p_pol = r_conf
+        nominal_means_run = nominal_means[i]
+        slopes_run = slopes[i]
+        Cov_mean_O_run = Cov_mean_O[i]
+        # adjust slopes for pol parameters if split
+        run_fit_parameters = fit_parameters.copy()
+        if split_helicity_reversal:
+            if e_pol > 0:
+                e_pol_par = e_pol_fit_parameters[1]  # R
+            else:
+                e_pol_par = e_pol_fit_parameters[0]  # L
+            if p_pol > 0:
+                p_pol_par = p_pol_fit_parameters[1]  # R
+            else:
+                p_pol_par = p_pol_fit_parameters[0]  # L
+            run_fit_parameters += [e_pol_par, p_pol_par]
+        build_model(w, run_fit_parameters, obs, nominal_means_run, slopes_run, Cov_mean_O_run, f"_run{i}")
+        models.append(w.pdf(f"fit_model_run{i}"))
+
+    run_categories = ROOT.RooCategory("runs", "Run configurations", {f"run_{i}": i for i in range(len(models))})
+    model_map = {f"run_{i}": models[i] for i in range(len(models))}
+    sim_model = ROOT.RooSimultaneous("sim_model", "sim_model", model_map, run_categories)
+    w.Import(sim_model)
+    w.defineSet("observables", obs)
+    w.saveSnapshot("nominal_parameters", all_fit_parameters)
+    return w
+
 
 
 def make_datasets(workspace, prefix: str, pars: list[str], means_dict, x_points: list[float] = []):
