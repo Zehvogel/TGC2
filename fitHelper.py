@@ -89,7 +89,7 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
         Cov_O = fit_inputs[4]
         Cov_mean_O.append(np.asarray(Cov_O) / (n_per_ab[-1] * run_ab * lumi_share))
         means_list.append(fit_inputs[5])
-    
+
     # build common obs and pars, assume they are the same for all runs
     n = len(nominal_means[0])
     # max_sigmas = [0.] * n
@@ -184,11 +184,93 @@ def make_datasets(workspace, prefix: str, pars: list[str], means_dict, x_points:
 #         print(p.GetName(), p.getVal(), p.getError())
 
 
-def fit(workspace, model_name, ds):
+def fit(workspace, model_name, ds, silent: bool = False):
     """Fit the model to the given dataset and return the fitted parameters and their errors."""
     workspace.loadSnapshot("nominal_parameters")
     model = workspace.pdf(model_name)
     # could also store fit result here
     # model.fitTo(ds)
-    res = model.fitTo(ds, Minos=True, Save=True)
+    # res = model.fitTo(ds, Minos=True, Save=True, PrintLevel=-1 if silent else 1)
+    # minos is not really needed here and takes a lot of time
+    res = model.fitTo(ds, Minos=False, Save=True, PrintLevel=-1 if silent else 1)
     return res
+
+
+def make_par_histo(fit_res, parameter_names: list[str]):
+    n = len(parameter_names)
+    h = ROOT.TH1D("", "", n, 0, n)
+    fit_parameters = fit_res.floatParsFinal()
+    for name in parameter_names:
+        try:
+            par = fit_parameters.find(name)
+            h.Fill(name, par.getError())
+        except:
+            h.Fill(name, 0)
+    return h
+
+
+
+def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str]):
+    for i, (name, fit_res) in enumerate(fit_results.items()):
+        h = make_par_histo(fit_res, parameter_names)
+        h.SetFillColor(ROOT.kP10Blue + i)
+        l.AddEntry(h, name, "f")
+        histos[name] = h
+        stack.Add(h)
+
+
+def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict,
+                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
+    histos = {}
+    stack = ROOT.THStack()
+    l = ROOT.TLegend()
+    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names)
+    return histos, stack, l
+
+
+def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str], parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
+    histos = {}
+    stack = ROOT.THStack()
+    l = ROOT.TLegend()
+    for i, oo_name in enumerate(oo_names):
+        fit_res = fit_results[oo_name][run_name]
+        h = make_par_histo(fit_res, parameter_names)
+        h.SetFillColor(ROOT.kP10Blue + i)
+        l.AddEntry(h, oo_name, "f")
+        histos[oo_name] = h
+        stack.Add(h)
+    return histos, stack, l
+
+
+class Plotter:
+    def __init__(self):
+        self.histos = {}
+        self.stacks = {}
+        self.legends = {}
+        self.canvases = {}
+
+
+    def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict,
+                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
+        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, parameter_names)
+        self.histos[plot_name] = histos
+        self.stacks[plot_name] = stack
+        self.legends[plot_name] = l
+        c = ROOT.TCanvas()
+        stack.Draw("nostackb")
+        l.Draw()
+        c.Draw()
+        self.canvases[plot_name] = c
+
+
+    def draw_plots_oo_names_per_run_name(self, plot_name: str, run_name: str, fit_results: dict, oo_names: list[str],
+                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
+        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names)
+        self.histos[plot_name] = histos
+        self.stacks[plot_name] = stack
+        self.legends[plot_name] = l
+        c = ROOT.TCanvas()
+        stack.Draw("nostackb")
+        l.Draw()
+        c.Draw()
+        self.canvases[plot_name] = c
