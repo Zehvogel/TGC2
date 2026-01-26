@@ -18,7 +18,7 @@ ildStyle->SetPadBorderMode(0);
 ildStyle->SetLegendBorderSize(0);
 
 //use the primary color palette
-ildStyle->SetPalette(1,0);
+// ildStyle->SetPalette(1,0);
 
 //set the default line color for a histogram to be black
 ildStyle->SetHistLineColor(kBlack);
@@ -44,7 +44,8 @@ ildStyle->SetLabelSize(0.06,"xyz");
 ildStyle->SetLabelOffset(0.015,"xyz");
 ildStyle->SetTitleFont(42,"xyz");
 ildStyle->SetTitleSize(0.07,"xyz");
-ildStyle->SetTitleOffset(1.1,"yz");
+// ildStyle->SetTitleOffset(1.1,"yz");
+ildStyle->SetTitleOffset(1.25,"yz");
 ildStyle->SetTitleOffset(1.0,"x");
 ildStyle->SetStatFont(42);
 ildStyle->SetStatFontSize(0.07);

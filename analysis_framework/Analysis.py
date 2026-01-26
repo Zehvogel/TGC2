@@ -355,10 +355,11 @@ class Analysis:
                 h.SetLineColor(kP10[i].GetNumber())
                 h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
                 overlay_hists.append(h)
+                legend.AddEntry(h, category_name, "l")
             else:
                 h.SetFillColor(kP10[i].GetNumber())
                 stack.Add(h)
-            legend.AddEntry(h, category_name, "f")
+                legend.AddEntry(h, category_name, "f")
             # store h so that it does not get deleted
             self._scaled_histograms[params][category_name] = h
         self._legends[params] = legend
@@ -754,18 +755,31 @@ class Analysis:
             out_file.write(dataset.to_json(indent=2))
 
 
-    def _draw_canvas(self, h, params, draw_opt: str = "hist", legend = None, logY: bool = False, plot_dir: str|None = None):
+    def _draw_canvas(self, h, params, draw_opt: str = "hist", legend = None, logY: bool = False, plot_dir: str|None = None, stack_x_title_from_hist: bool = False):
         canvas = ROOT.TCanvas()
         self._canvases[params] = canvas
         h.Draw(draw_opt)
-        if legend:
-            legend.Draw()
         if logY:
             canvas.SetLogy()
+        canvas.SetRightMargin(0.10)
+        canvas.SetLeftMargin(0.17)
+        canvas.Draw()
+        if stack_x_title_from_hist:
+            h1 = h.GetHists().At(0)
+            print(f"h1 title: {h1.GetXaxis().GetTitle()}")
+            h.SetTitle(f";{h1.GetXaxis().GetTitle()};unweighted events")
+        else:
+            h.SetTitle(f";{h.GetXaxis().GetTitle()};unweighted events")
+        if legend:
+            if plot_dir:
+                Path(plot_dir).mkdir(parents=True, exist_ok=True)
+                canvas.SaveAs(f"{plot_dir}/{params}_no_legend.pdf")
+            legend.Draw()
         canvas.Draw()
         if plot_dir:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
             canvas.SaveAs(f"{plot_dir}/{params}.pdf")
+        return canvas
 
 
     def draw_unscaled_histograms(self, name: str, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):
@@ -781,7 +795,7 @@ class Analysis:
                 # get histogram
                 params = f"unscaled_{name}_{k}"
                 h = histograms[k]
-                h.SetTitle(f"{k};{name};events")
+                h.SetTitle(f"{k};{name};unweighted events")
                 self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
 
 
@@ -812,8 +826,8 @@ class Analysis:
         return h
 
 
-    def compare_summed_histograms_unscaled(self, names: list[str], category: str, draw_opt: str = "nostack hist", logY: bool = False, plot_dir: str|None = None):
-        legend = ROOT.TLegend(0.7, 0.8, 1., 1.)
+    def compare_summed_histograms_unscaled(self, names: list[str], category: str, draw_opt: str = "nostack hist", logY: bool = False, plot_dir: str|None = None, legend_remove_suffix: str = ""):
+        legend = ROOT.TLegend(0.65, 0.75, 1., 1.)
         stack = ROOT.THStack()
         for i, name in enumerate(names):
             params = f"unscaled_sum_comp_{name}_{category}"
@@ -821,12 +835,26 @@ class Analysis:
             # just need to keep these alive somewhere
             self._stacks[params] = h
             h.SetLineColor(kP10[i].GetNumber())
-            legend.AddEntry(h, name, "f")
+            legend.AddEntry(h, name.removesuffix(legend_remove_suffix), "l")
             stack.Add(h)
         params = f"comparison_{'_'.join(names)}"
         self._legends[params] = legend
         self._stacks[params] = stack
-        self._draw_canvas(stack, params, legend=legend, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
+        # stack.SetTitle(";;unweighted events")
+        canvas = self._draw_canvas(stack, params, legend=legend, draw_opt=draw_opt, logY=logY, stack_x_title_from_hist=True, plot_dir=plot_dir)
+        # use last h to set title of the stack
+        # stack.SetTitle(f";{h.GetXaxis().GetTitle()};unweighted events")
+        # canvas.SetRightMargin(0.05)
+        # canvas.SetLeftMargin(0.17)
+        # canvas.Modified()
+        # if plot_dir:
+            # Path(plot_dir).mkdir(parents=True, exist_ok=True)
+            # canvas.SaveAs(f"{plot_dir}/{params}.pdf")
+            # c2 = ROOT.TCanvas()
+            # c2.SetRightMargin(0.05)
+            # c2.SetLeftMargin(0.17)
+            # stack.Draw(draw_opt)
+            # c2.SaveAs(f"{plot_dir}/{params}_no_legend.pdf")
 
 
     def compare_histograms_unscaled(self, names: list[str], draw_opt: str = "nostack hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None):
@@ -844,7 +872,7 @@ class Analysis:
                     # get histogram, clone it, scale it, put it in a list
                     h = self._histograms[name][k].GetPtr()
                     h.SetLineColor(kP10[i].GetNumber())
-                    legend.AddEntry(h, name, "f")
+                    legend.AddEntry(h, name, "l")
                     stack.Add(h)
                 params = f"comparison_{names[0]}_{k}"
                 stack.SetTitle(k)

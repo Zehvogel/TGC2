@@ -62,9 +62,11 @@ class ObjectSelectionHelper(Analysis):
 
     def define_deltas(self, name, lvec1, lvec2, categories):
         self._define((f"{name}_delta_E", f"{lvec1}.energy() - {lvec2}.energy()"), categories)
+        self._define((f"{name}_delta_E_rel_sqrt", f"({lvec1}.energy() - {lvec2}.energy()) / std::pow({lvec1}.energy(), 1.5)"), categories)
         self._define((f"{name}_delta_theta", f"{lvec1}.Theta() - {lvec2}.Theta()"), categories)
         self._define((f"{name}_delta_phi", f"ROOT::Math::VectorUtil::DeltaPhi({lvec1}, {lvec2})"), categories)
         self._define((f"{name}_delta_P", f"{lvec1}.P() - {lvec2}.P()"), categories)
+        self._define((f"{name}_delta_P_rel_sqrt", f"({lvec1}.P() - {lvec2}.P()) / std::pow({lvec1}.P(), 1.5)"), categories)
         self._define((f"{name}_delta_Pt", f"{lvec1}.Pt() - {lvec2}.Pt()"), categories)
         self._define((f"{name}_delta_Pt2", f"{lvec1}.Perp2() - {lvec2}.Perp2()"), categories)
         self._define((f"{name}_delta_Px", f"{lvec1}.Px() - {lvec2}.Px()"), categories)
@@ -73,4 +75,5 @@ class ObjectSelectionHelper(Analysis):
         self._define((f"{name}_delta_PxPy", f"({lvec1}.Px()+{lvec1}.Py()) - ({lvec2}.Px()+{lvec2}.Py())"), categories)
         self._define((f"{name}_delta_PxPy2", f"({lvec1}.Px()*{lvec1}.Px()+{lvec1}.Py()*{lvec1}.Py()) - ({lvec2}.Px()*{lvec2}.Px()+{lvec2}.Py()*{lvec2}.Py())"), categories)
         self._define((f"{name}_delta_Pz", f"{lvec1}.Pz() - {lvec2}.Pz()"), categories)
-        self._define((f"{name}_delta_P_scaled", f"{name}_delta_P / std::pow({lvec2}.P(), 1.5)"), categories)
+        self._define((f"{name}_delta_P_scaled2", f"{name}_delta_P / std::pow({lvec2}.P(), 1.5)"), categories)
+        self._define((f"{name}_delta_P_scaled1", f"{name}_delta_P / std::pow({lvec1}.P(), 1.5)"), categories)

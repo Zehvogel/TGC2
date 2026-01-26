@@ -3,6 +3,7 @@
 #include <MomentumConstraint.h>
 #include <MassConstraint.h>
 #include <SoftGaussMassConstraint.h>
+#include <SoftBWMassConstraint.h>
 #include <OPALFitterGSL.h>
 #include <NewFitterGSL.h>
 #include <Math/Vector4D.h>
@@ -30,6 +31,12 @@ struct enuWFit {
     enuWFit(std::vector<double> eErr, std::vector<double> thetaErr, std::vector<double> phiErr, double xAngle, double eCMS, double mW, double width_W)
         : errE(eErr), errTheta(thetaErr), errPhi(phiErr), x_angle(xAngle), e_cms(eCMS), m_W(mW), width_W(width_W) {}
 
+
+    double getJetEnergyResolution(double E, int jetIndex) const {
+        return errE[jetIndex] * std::pow(E, 1.5);
+    }
+    
+
     FitResult operator()(lvec in_obj1, lvec in_obj2, lvec in_obj3, lvec in_obj4, bool doFitFlag) {
         if (!doFitFlag) {
             FitResult result;
@@ -50,8 +57,8 @@ struct enuWFit {
     FitResult doFit(lvec in_obj1, lvec in_obj2, lvec in_obj3, lvec in_obj4) {
         JetFitObject f_obj1(in_obj1.P(), in_obj1.Theta(), in_obj1.Phi(), errE[0], errTheta[0], errPhi[0], 0.);
         JetFitObject f_obj2(in_obj2.P(), in_obj2.Theta(), in_obj2.Phi(), errE[1], errTheta[1], errPhi[1], 0.);
-        JetFitObject f_obj3(in_obj3.P(), in_obj3.Theta(), in_obj3.Phi(), errE[2], errTheta[2], errPhi[2], 0.);
-        JetFitObject f_obj4(in_obj4.P(), in_obj4.Theta(), in_obj4.Phi(), errE[3], errTheta[3], errPhi[3], 0.);
+        JetFitObject f_obj3(in_obj3.P(), in_obj3.Theta(), in_obj3.Phi(), this->getJetEnergyResolution(in_obj3.E(), 2), errTheta[2], errPhi[2], 0.);
+        JetFitObject f_obj4(in_obj4.P(), in_obj4.Theta(), in_obj4.Phi(), this->getJetEnergyResolution(in_obj4.E(), 3), errTheta[3], errPhi[3], 0.);
 
         MomentumConstraint e_constraint(1.0, 0.0, 0.0, 0.0, e_cms);
         MomentumConstraint px_constraint(0.0, 1.0, 0.0, 0.0, std::sin(x_angle/2.) * e_cms);
@@ -76,7 +83,8 @@ struct enuWFit {
         pz_constraint.addToFOList(f_obj4);
 
         // MassConstraint w_constraint(m_W);
-        SoftGaussMassConstraint w_constraint(width_W/2., m_W);
+        // SoftGaussMassConstraint w_constraint(width_W/2., m_W);
+        SoftBWMassConstraint w_constraint(width_W, m_W);
 
         w_constraint.addToFOList(f_obj3);
         w_constraint.addToFOList(f_obj4);

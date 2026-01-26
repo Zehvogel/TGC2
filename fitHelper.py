@@ -220,18 +220,25 @@ def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str]):
 
 
 def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict,
-                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
+                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
+                                legend_pars = None):
     histos = {}
     stack = ROOT.THStack()
-    l = ROOT.TLegend()
+    if legend_pars:
+        l = ROOT.TLegend(*legend_pars)
+    else:
+        l = ROOT.TLegend()
     make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names)
     return histos, stack, l
 
 
-def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str], parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
+def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str], parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"], legend_pars = None):
     histos = {}
     stack = ROOT.THStack()
-    l = ROOT.TLegend()
+    if legend_pars:
+        l = ROOT.TLegend(*legend_pars)
+    else:
+        l = ROOT.TLegend()
     for i, oo_name in enumerate(oo_names):
         fit_res = fit_results[oo_name][run_name]
         h = make_par_histo(fit_res, parameter_names)
@@ -250,27 +257,44 @@ class Plotter:
         self.canvases = {}
 
 
+    def apply_canvas_properties(self, c):
+        c.SetLeftMargin(0.15)
+        c.SetRightMargin(0.05)
+        c.SetBottomMargin(0.1)
+
+
+    def apply_stack_properties(self, stack):
+        # stack.GetXaxis().SetTitleSize(0.5)
+        stack.GetXaxis().SetLabelSize(0.125)
+
+
     def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict,
-                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
-        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, parameter_names)
+                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
+                                legend_pars = None):
+        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, parameter_names, legend_pars)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
         c = ROOT.TCanvas()
         stack.Draw("nostackb")
+        self.apply_stack_properties(stack)
         l.Draw()
+        self.apply_canvas_properties(c)
         c.Draw()
         self.canvases[plot_name] = c
 
 
     def draw_plots_oo_names_per_run_name(self, plot_name: str, run_name: str, fit_results: dict, oo_names: list[str],
-                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"]):
-        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names)
+                                parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
+                                legend_pars = None):
+        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names, legend_pars)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
         c = ROOT.TCanvas()
         stack.Draw("nostackb")
+        self.apply_stack_properties(stack)
         l.Draw()
+        self.apply_canvas_properties(c)
         c.Draw()
         self.canvases[plot_name] = c
