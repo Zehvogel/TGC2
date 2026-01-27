@@ -1,6 +1,7 @@
 #include "edm4hep/ReconstructedParticleData.h"
 // #include "RVec.hxx"
 #include "podio/ObjectID.h"
+#include <deque>
 
 using edm4hep::ReconstructedParticleData;
 using PFOVec = ROOT::VecOps::RVec<ReconstructedParticleData>;
@@ -40,6 +41,16 @@ RVec<int> subset_to_mask(const PFOVec& orig_col, const IDVec& subset_col) {
     return res;
 }
 
+RVec<int> subset_to_mask(std::size_t orig_col_size, const IDVec& subset_col) {
+    RVec<int> res(orig_col_size, 0);
+
+    for (const auto& id : subset_col) {
+        res[id.index] = 1;
+    }
+
+    return res;
+}
+
 RVec<int> mcp_mask_to_pfo_mask(const RVec<int>& mcp_mask, const PFOVec& pfo_col, const IDVec& from, const IDVec& to, const RVec<float>& weights)
 {
     RVec<int> pfo_mask(pfo_col.size(), 0);
@@ -55,8 +66,26 @@ RVec<int> mcp_mask_to_pfo_mask(const RVec<int>& mcp_mask, const PFOVec& pfo_col,
     }
     return pfo_mask;
 }
-// for each RecoMCTruth relation
-//  take j = _to.index and check if mcp_mask[j] == 1
-//  if yes:
-//  take weight, take cluster weight from weight, check if > 0.5
-//  take k = _from.index, and mark pfo_mask[k] == 1
+
+RVec<int> find_brems(int parent_idx, RVec<int> daughters_begins, RVec<int> daughters_ends, RVec<int> daughter_idcs, RVec<int> mc_PDGs)
+{
+    int current_idx = parent_idx;
+    RVec<int> res;
+    std::deque<int> to_check;
+    do
+    {
+        if (std::abs(mc_PDGs[current_idx]) == 11) {
+            int n_daughters = daughters_ends[current_idx] - daughters_begins[current_idx];
+            for (int i = 0; i < n_daughters; i++) {
+                int daughter_idx = daughter_idcs[daughters_begins[current_idx] + i];
+                to_check.push_back(daughter_idx);
+            }
+        } else if (std::abs(mc_PDGs[current_idx]) == 22) {
+            res.push_back(current_idx);
+        }
+        current_idx = to_check.front();
+        to_check.pop_front();
+    } while (!to_check.empty());
+
+    return res;
+}
