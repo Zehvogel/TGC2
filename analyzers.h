@@ -72,9 +72,11 @@ RVec<int> find_brems(int parent_idx, RVec<int> daughters_begins, RVec<int> daugh
     int current_idx = parent_idx;
     RVec<int> res;
     std::deque<int> to_check;
-    do
-    {
-        if (std::abs(mc_PDGs[current_idx]) == 11) {
+    to_check.push_back(current_idx);
+    while (!to_check.empty()){
+        current_idx = to_check.front();
+        to_check.pop_front();
+        if (std::abs(mc_PDGs[current_idx]) == 11 || mc_PDGs[current_idx] == 94) {
             int n_daughters = daughters_ends[current_idx] - daughters_begins[current_idx];
             for (int i = 0; i < n_daughters; i++) {
                 int daughter_idx = daughter_idcs[daughters_begins[current_idx] + i];
@@ -83,9 +85,7 @@ RVec<int> find_brems(int parent_idx, RVec<int> daughters_begins, RVec<int> daugh
         } else if (std::abs(mc_PDGs[current_idx]) == 22) {
             res.push_back(current_idx);
         }
-        current_idx = to_check.front();
-        to_check.pop_front();
-    } while (!to_check.empty());
+    }
 
     return res;
 }

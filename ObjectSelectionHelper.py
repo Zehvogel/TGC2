@@ -48,13 +48,12 @@ class ObjectSelectionHelper(Analysis):
         self._define(("true_isr1_lvec", make_lvec_M("MCParticlesSkimmed", "6")), categories)
         self._define(("true_isr2_lvec", make_lvec_M("MCParticlesSkimmed", "7")), categories)
 
-        self._define(("true_quark1_postCRC_idx", "return StableArgsort(MCParticlesSkimmed.generatorStatus == 2 && abs(MCParticlesSkimmed.PDG) < 6, [] (const auto a, const auto b) {return a > b;} )[2]"), categories)
-        self._define(("true_quark2_postCRC_idx", "true_quark1_postCRC_idx+1"), categories)
+        self._define(("true_quark1_post94_idx", "return StableArgsort(MCParticlesSkimmed.generatorStatus == 2 && abs(MCParticlesSkimmed.PDG) < 6, [] (const auto a, const auto b) {return a > b;} )[2]"), categories)
+        self._define(("true_quark2_post94_idx", "true_quark1_post94_idx+1"), categories)
 
-        self._define(("true_quark1_postCRC_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark1_postCRC_idx")), categories)
-        self._define(("true_quark2_postCRC_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark2_postCRC_idx")), categories)
-
-        self._define(("true_hadronic_W_postCRC_lvec", "true_quark1_postCRC_lvec + true_quark2_postCRC_lvec"), categories)
+        self._define(("true_quark1_post94_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark1_post94_idx")), categories)
+        self._define(("true_quark2_post94_lvec", make_lvec_M("MCParticlesSkimmed", "true_quark2_post94_idx")), categories)
+        self._define(("true_hadronic_W_post94_lvec", "true_quark1_post94_lvec + true_quark2_post94_lvec"), categories)
 
         # self.truth_defined = True
         self.truth_categories = categories
