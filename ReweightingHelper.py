@@ -21,8 +21,10 @@ class ReweightingHelper(Analysis):
         ROOT.gSystem.Load("libwhizard.so")
         ROOT.gSystem.Load("libwhizard_main.so")
         ROOT.gSystem.Load("libomega.so")
-        ROOT.gSystem.Load("OO/whizard/cc20_ac_inclusive/.libs/default_lib.so")
-        ROOT.gInterpreter.Declare("#include \"OO/whizard/OmegaWrapper.h\"")
+        # ROOT.gSystem.Load("OO/whizard/cc20_ac_inclusive/.libs/default_lib.so")
+        ROOT.gSystem.Load("OO/whizard/cc20_ac_inclusive_fast/.libs/default_lib.so")
+        # ROOT.gInterpreter.Declare("#include \"OO/whizard/OmegaWrapper.h\"")
+        ROOT.gInterpreter.Declare("#include \"OO/whizard/OmegaWrapperNewer.h\"")
 
         model_parser = ModelParser("OO/whizard/SM_ac.mdl")
         # add derivation of lz and kz according to lep parametrisation
