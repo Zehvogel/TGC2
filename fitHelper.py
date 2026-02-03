@@ -3,6 +3,7 @@ from ast import literal_eval
 from itertools import combinations_with_replacement
 import numpy as np
 from AltSetupHandler import AltSetupHandler
+from pathlib import Path
 
 
 def load_fit_input(input_path):
@@ -53,7 +54,9 @@ def create_models(workspace, pars, nominal_means, slopes, Cov_mean_O):
     obs = []
     for i in range(len(nominal_means)):
         sigma = np.sqrt(Cov_mean_O[i,i])
-        o = ROOT.RooRealVar(f"O_{pars[i]}", f"O_{pars[i]}", nominal_means[i], nominal_means[i]-5*sigma, nominal_means[i]+5*sigma)
+        # only really meaningful for the Asimov case where obs = means, for the datasets where the parameters vary they could easily be outside this range if stats are large
+        # is it still valid then to use the constant covariance matrix without scaling it itself? The fit still seems to work :)
+        o = ROOT.RooRealVar(f"O_{pars[i]}", f"O_{pars[i]}", nominal_means[i], nominal_means[i]-500*sigma, nominal_means[i]+500*sigma)
         obs.append(o)
 
     build_model(workspace, parameters, obs, nominal_means, slopes, Cov_mean_O, rename_var_suffix="")
@@ -184,7 +187,7 @@ def make_datasets(workspace, prefix: str, pars: list[str], means_dict, x_points:
 #         print(p.GetName(), p.getVal(), p.getError())
 
 
-def fit(workspace, model_name, ds, silent: bool = False):
+def fit(workspace, model_name, ds, silent: bool = False, minos: bool = False):
     """Fit the model to the given dataset and return the fitted parameters and their errors."""
     workspace.loadSnapshot("nominal_parameters")
     model = workspace.pdf(model_name)
@@ -192,7 +195,7 @@ def fit(workspace, model_name, ds, silent: bool = False):
     # model.fitTo(ds)
     # res = model.fitTo(ds, Minos=True, Save=True, PrintLevel=-1 if silent else 1)
     # minos is not really needed here and takes a lot of time
-    res = model.fitTo(ds, Minos=False, Save=True, PrintLevel=-1 if silent else 1)
+    res = model.fitTo(ds, Minos=minos, Save=True, PrintLevel=-1 if silent else 1)
     return res
 
 
@@ -209,30 +212,30 @@ def make_par_histo(fit_res, parameter_names: list[str]):
     return h
 
 
-
-def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str]):
+def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str], legend_name_dict: dict[str, str] = {}):
     for i, (name, fit_res) in enumerate(fit_results.items()):
         h = make_par_histo(fit_res, parameter_names)
         h.SetFillColor(ROOT.kP10Blue + i)
-        l.AddEntry(h, name, "f")
+        leg_name = legend_name_dict[name] if name in legend_name_dict else name
+        l.AddEntry(h, leg_name, "f")
         histos[name] = h
         stack.Add(h)
 
 
 def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict,
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None):
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}):
     histos = {}
     stack = ROOT.THStack()
     if legend_pars:
         l = ROOT.TLegend(*legend_pars)
     else:
         l = ROOT.TLegend()
-    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names)
+    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names, legend_name_dict)
     return histos, stack, l
 
 
-def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str], parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"], legend_pars = None):
+def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str], parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"], legend_pars = None, legend_name_dict: dict[str, str] = {}):
     histos = {}
     stack = ROOT.THStack()
     if legend_pars:
@@ -243,7 +246,8 @@ def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names:
         fit_res = fit_results[oo_name][run_name]
         h = make_par_histo(fit_res, parameter_names)
         h.SetFillColor(ROOT.kP10Blue + i)
-        l.AddEntry(h, oo_name, "f")
+        leg_name = legend_name_dict[oo_name] if oo_name in legend_name_dict else oo_name
+        l.AddEntry(h, leg_name, "f")
         histos[oo_name] = h
         stack.Add(h)
     return histos, stack, l
@@ -266,17 +270,18 @@ class Plotter:
     def apply_stack_properties(self, stack):
         # stack.GetXaxis().SetTitleSize(0.5)
         stack.GetXaxis().SetLabelSize(0.125)
+        stack.GetYaxis().SetTitle("absolute uncertainty")
 
 
     def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict,
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None):
-        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, parameter_names, legend_pars)
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}):
+        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, parameter_names, legend_pars, legend_name_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
         c = ROOT.TCanvas()
-        stack.Draw("nostackb")
+        stack.Draw("nostackb hist")
         self.apply_stack_properties(stack)
         l.Draw()
         self.apply_canvas_properties(c)
@@ -286,15 +291,21 @@ class Plotter:
 
     def draw_plots_oo_names_per_run_name(self, plot_name: str, run_name: str, fit_results: dict, oo_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None):
-        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names, legend_pars)
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None):
+        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names, legend_pars, legend_name_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
+        if plot_dir:
+            Path(plot_dir).mkdir(parents=True, exist_ok=True)
         c = ROOT.TCanvas()
-        stack.Draw("nostackb")
+        stack.Draw("nostackb hist")
         self.apply_stack_properties(stack)
-        l.Draw()
         self.apply_canvas_properties(c)
+        if plot_dir:
+            c.SaveAs(f"{plot_dir}/{plot_name}_no_legend.pdf")
+        l.Draw()
         c.Draw()
         self.canvases[plot_name] = c
+        if plot_dir:
+            c.SaveAs(f"{plot_dir}/{plot_name}.pdf")

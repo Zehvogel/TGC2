@@ -31,6 +31,7 @@ class Analysis:
     _plot_label = None
     _t = ROOT.TLatex()
     _pol_labels = {}
+    _plot_names = {}
 
 
     def __init__(self, dataset: Dataset, friend_datasets: list[Dataset] = []):
@@ -75,6 +76,10 @@ class Analysis:
 
     def set_plot_label(self, label):
         self._plot_label = label
+
+
+    def set_plot_names(self, plot_names: dict[str, str]):
+        self._plot_names = plot_names
 
 
     def _get_frame_names(self, categories: list[str]|None):
@@ -320,7 +325,7 @@ class Analysis:
     #         return pol_label
 
 
-    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None, draw_legend: bool = True):
+    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None, draw_legend: bool = True, right_margin: float = 0.05):
         histograms = self._histograms[name]
         stack = ROOT.THStack()
         params = (name, int_lumi, e_pol, p_pol)
@@ -365,8 +370,10 @@ class Analysis:
         self._legends[params] = legend
         self._stacks[params] = stack
         canvas = ROOT.TCanvas()
+        canvas.SetRightMargin(right_margin)
         self._canvases[params] = canvas
-        stack.SetTitle(f";{name};events")
+        plot_name = self._plot_names[name] if name in self._plot_names else name
+        stack.SetTitle(f";{plot_name};events")
         stack.Draw(draw_opt)
         y_max_overlay = 0
         for h in overlay_hists:
@@ -478,7 +485,7 @@ class Analysis:
 
 
 
-    def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None, overlay: list[str]|None = None):
+    def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None, overlay: list[str]|None = None, right_margin: float = 0.05):
         numbers, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
         names = list(list(self._df.values())[0].GetFilterNames())
         n_filters = len(names)
@@ -507,6 +514,7 @@ class Analysis:
         self._stacks[params] = stack
         canvas = ROOT.TCanvas()
         self._canvases[params] = canvas
+        canvas.SetRightMargin(right_margin)
         stack.SetTitle(";;events")
         stack.Draw("hist")
         for h in overlay_hists:
