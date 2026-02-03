@@ -212,8 +212,9 @@ def make_par_histo(fit_res, parameter_names: list[str]):
     return h
 
 
-def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str], legend_name_dict: dict[str, str] = {}):
-    for i, (name, fit_res) in enumerate(fit_results.items()):
+def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str], legend_name_dict: dict[str, str] = {}, run_names: list[str] = []):
+    for i, name, in enumerate(run_names):
+        fit_res = fit_results[name]
         h = make_par_histo(fit_res, parameter_names)
         h.SetFillColor(ROOT.kP10Blue + i)
         leg_name = legend_name_dict[name] if name in legend_name_dict else name
@@ -222,7 +223,7 @@ def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str], l
         stack.Add(h)
 
 
-def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict,
+def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict, run_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
                                 legend_pars = None, legend_name_dict: dict[str, str] = {}):
     histos = {}
@@ -231,7 +232,8 @@ def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict,
         l = ROOT.TLegend(*legend_pars)
     else:
         l = ROOT.TLegend()
-    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names, legend_name_dict)
+    l.SetHeader(legend_name_dict[oo_name] if oo_name in legend_name_dict else oo_name)
+    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names, legend_name_dict, run_names)
     return histos, stack, l
 
 
@@ -242,6 +244,7 @@ def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names:
         l = ROOT.TLegend(*legend_pars)
     else:
         l = ROOT.TLegend()
+    l.SetHeader(legend_name_dict[run_name] if run_name in legend_name_dict else run_name)
     for i, oo_name in enumerate(oo_names):
         fit_res = fit_results[oo_name][run_name]
         h = make_par_histo(fit_res, parameter_names)
@@ -273,20 +276,24 @@ class Plotter:
         stack.GetYaxis().SetTitle("absolute uncertainty")
 
 
-    def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict,
+    def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict, run_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None, legend_name_dict: dict[str, str] = {}):
-        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, parameter_names, legend_pars, legend_name_dict)
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None):
+        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, run_names, parameter_names, legend_pars, legend_name_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
         c = ROOT.TCanvas()
         stack.Draw("nostackb hist")
         self.apply_stack_properties(stack)
-        l.Draw()
         self.apply_canvas_properties(c)
+        if plot_dir:
+            c.SaveAs(f"{plot_dir}/{plot_name}_no_legend.pdf")
+        l.Draw()
         c.Draw()
         self.canvases[plot_name] = c
+        if plot_dir:
+            c.SaveAs(f"{plot_dir}/{plot_name}.pdf")
 
 
     def draw_plots_oo_names_per_run_name(self, plot_name: str, run_name: str, fit_results: dict, oo_names: list[str],
