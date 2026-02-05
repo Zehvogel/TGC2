@@ -150,7 +150,8 @@ class OptimalObservableHelper(Analysis):
             for oo in oo_names:
                 oo_w_name = f"{oo}_{w_name}"
                 oo_sum = self.get_sum(oo_w_name, e_pol=e_pol, p_pol=p_pol, categories=categories)
-                oo_means[oo_w_name] = oo_sum / w_sum
+                print(oo,oo_w_name, oo_sum, w_sum)
+                oo_means[oo_w_name] = oo_sum / w_sum #if w_sum != 0. else 0.
 
         if vary_pol:
             # print(pol_var_list)
@@ -161,12 +162,11 @@ class OptimalObservableHelper(Analysis):
                 for oo in oo_names:
                     oo_w_name_epol = f"{oo}_weight_hel_{AltSetupHandler.make_name("epol", var)}"
                     oo_sum_epol = self.get_sum(f"{oo}_{nom_w}", e_pol=e_pol+var, p_pol=p_pol, categories=categories)
-                    oo_means[oo_w_name_epol] = oo_sum_epol / w_sum_epol
+                    oo_means[oo_w_name_epol] = oo_sum_epol / w_sum_epol #if w_sum_epol != 0. else 0.
 
                     oo_w_name_ppol = f"{oo}_weight_hel_{AltSetupHandler.make_name("ppol", var)}"
                     oo_sum_ppol = self.get_sum(f"{oo}_{nom_w}", e_pol=e_pol, p_pol=p_pol+var, categories=categories)
-                    oo_means[oo_w_name_ppol] = oo_sum_ppol / w_sum_ppol
-
+                    oo_means[oo_w_name_ppol] = oo_sum_ppol / w_sum_ppol #if w_sum_ppol != 0. else 0.
         return oo_means
 
 

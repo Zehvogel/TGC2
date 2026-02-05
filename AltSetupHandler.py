@@ -23,7 +23,7 @@ class AltSetupHandler():
     @staticmethod
     def make_name(parameter: str, var: float) -> str:
         # need to get rid of - to use as c++ identifier later
-        alt_name = f"{parameter}_{'pos' if var > 0. else 'neg'}_{abs(var):.0e}".replace("-", "m")
+        alt_name = f"{parameter}_{'pos' if var > 0. else 'neg'}_{abs(var):.0e}".replace("-", "m").replace("+", "p")
         return alt_name
 
 

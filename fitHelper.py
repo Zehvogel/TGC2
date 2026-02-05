@@ -74,7 +74,7 @@ def create_models(workspace, pars, nominal_means, slopes, Cov_mean_O):
     workspace.defineSet("parameters", parameters)
 
 
-def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: bool = True):
+def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: bool = True, pol_constraint: float | None = None):
     w = ROOT.RooWorkspace("w")
     pars_list = []
     n_per_ab = []
@@ -143,8 +143,20 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
             else:
                 p_pol_par = p_pol_fit_parameters[0]  # L
             run_fit_parameters += [e_pol_par, p_pol_par]
+        else:
+            e_pol_par = run_fit_parameters[-2]
+            p_pol_par = run_fit_parameters[-1]
         build_model(w, run_fit_parameters, obs, nominal_means_run, slopes_run, Cov_mean_O_run, f"_run{i}")
-        models.append(w.pdf(f"fit_model_run{i}"))
+        fit_model = w.pdf(f"fit_model_run{i}")
+        if pol_constraint:
+            e_pol_cnstr_v = abs(e_pol) * pol_constraint if e_pol != 0 else pol_constraint
+            p_pol_cnstr_v = abs(p_pol) * pol_constraint if p_pol != 0 else pol_constraint
+            e_pol_cnstr_pdf = ROOT.RooGaussian(f"constraint_e_pol_run{i}", f"constraint_e_pol_run{i}", e_pol_par, ROOT.RooFit.RooConst(0.), ROOT.RooFit.RooConst(e_pol_cnstr_v))
+            p_pol_cnstr_pdf = ROOT.RooGaussian(f"constraint_p_pol_run{i}", f"constraint_p_pol_run{i}", p_pol_par, ROOT.RooFit.RooConst(0.), ROOT.RooFit.RooConst(p_pol_cnstr_v))
+            w.Import(e_pol_cnstr_pdf)
+            w.Import(p_pol_cnstr_pdf)
+            fit_model = ROOT.RooProdPdf(f"fit_model_run{i}_with_constraints", f"fit_model_run{i}_with_constraints", [fit_model, w.pdf(e_pol_cnstr_pdf.GetName()), w.pdf(p_pol_cnstr_pdf.GetName())])
+        models.append(fit_model)
 
     run_categories = ROOT.RooCategory("runs", "Run configurations", {f"run_{i}": i for i in range(len(models))})
     model_map = {f"run_{i}": models[i] for i in range(len(models))}
@@ -187,14 +199,29 @@ def make_datasets(workspace, prefix: str, pars: list[str], means_dict, x_points:
 #         print(p.GetName(), p.getVal(), p.getError())
 
 
-def fit(workspace, model_name, ds, silent: bool = False, minos: bool = False):
+def fit(workspace, model_name, ds, silent: bool = False, minos: bool = False, constant_parameters: list[str] = [], constraints: dict[str, float] = {}):
     """Fit the model to the given dataset and return the fitted parameters and their errors."""
     workspace.loadSnapshot("nominal_parameters")
     model = workspace.pdf(model_name)
-    # could also store fit result here
-    # model.fitTo(ds)
-    # res = model.fitTo(ds, Minos=True, Save=True, PrintLevel=-1 if silent else 1)
-    # minos is not really needed here and takes a lot of time
+    for par_name in constant_parameters:
+        par = workspace.var(par_name)
+        if par:
+            par.setConstant(True)
+        else:
+            print(f"Warning: parameter {par_name} not found in workspace, cannot set it constant.")
+    constraint_pdfs = []
+    for par_name, sigma in constraints.items():
+        par = workspace.var(par_name)
+        if par:
+            mean = par.getValV()
+            gauss = ROOT.RooGaussian(f"constraint_{par_name}", f"constraint_{par_name}", par, ROOT.RooFit.RooConst(mean), ROOT.RooFit.RooConst(sigma))
+            constraint_pdfs.append(gauss)
+        else:
+            print(f"Warning: parameter {par_name} not found in workspace, cannot add constraint.")
+    if constraint_pdfs:
+        all_pdfs = [model] + constraint_pdfs
+        model = ROOT.RooProdPdf(f"{model_name}_with_constraints", f"{model_name}_with_constraints", all_pdfs)
+
     res = model.fitTo(ds, Minos=minos, Save=True, PrintLevel=-1 if silent else 1)
     return res
 
@@ -267,7 +294,7 @@ class Plotter:
     def apply_canvas_properties(self, c):
         c.SetLeftMargin(0.15)
         c.SetRightMargin(0.05)
-        c.SetBottomMargin(0.1)
+        c.SetBottomMargin(0.12)
 
 
     def apply_stack_properties(self, stack):

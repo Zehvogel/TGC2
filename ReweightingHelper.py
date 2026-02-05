@@ -13,7 +13,7 @@ class ReweightingHelper(Analysis):
         super().__init__(*args, **kwargs)
 
 
-    def initialise_omega_wrappers(self, configurations: dict[str,dict[str, float]]):
+    def initialise_omega_wrappers(self, configurations: dict[str,dict[str, float]], lib_path: str = "OO/whizard/cc20_ac_inclusive_fast/.libs/default_lib.so", include_path: str = "#include \"OO/whizard/OmegaWrapperNewer.h\"", nominal_pars: dict[str, float]|None = None):
         whizard_prefix = subprocess.run(['whizard-config', '--prefix'], capture_output=True, encoding='ascii').stdout.strip()
         whizard_libs = f"{whizard_prefix}/lib/"
         # print(whizard_libs)
@@ -22,14 +22,16 @@ class ReweightingHelper(Analysis):
         ROOT.gSystem.Load("libwhizard_main.so")
         ROOT.gSystem.Load("libomega.so")
         # ROOT.gSystem.Load("OO/whizard/cc20_ac_inclusive/.libs/default_lib.so")
-        ROOT.gSystem.Load("OO/whizard/cc20_ac_inclusive_fast/.libs/default_lib.so")
+        ROOT.gSystem.Load(lib_path)
         # ROOT.gInterpreter.Declare("#include \"OO/whizard/OmegaWrapper.h\"")
-        ROOT.gInterpreter.Declare("#include \"OO/whizard/OmegaWrapperNewer.h\"")
+        ROOT.gInterpreter.Declare(include_path)
 
         model_parser = ModelParser("OO/whizard/SM_ac.mdl")
         # add derivation of lz and kz according to lep parametrisation
         model_parser.add_derived_parameter("lz", "la")
         model_parser.add_derived_parameter("kz", "1.0 - (ka - 1.0) * sw**2/cw**2 + (g1z - 1.0)")
+        if nominal_pars:
+            model_parser.set_parameters(nominal_pars)
         self._omega_wrappers["nominal"] = ROOT.OmegaWrapper(model_parser.get_parameters_list())
 
         for name, pars in configurations.items():
