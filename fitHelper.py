@@ -291,13 +291,14 @@ class Plotter:
         self.canvases = {}
 
 
-    def apply_canvas_properties(self, c):
+    @staticmethod
+    def apply_canvas_properties(c):
         c.SetLeftMargin(0.15)
         c.SetRightMargin(0.05)
         c.SetBottomMargin(0.12)
 
-
-    def apply_stack_properties(self, stack):
+    @staticmethod
+    def apply_stack_properties(stack):
         # stack.GetXaxis().SetTitleSize(0.5)
         stack.GetXaxis().SetLabelSize(0.125)
         stack.GetYaxis().SetTitle("absolute uncertainty")
@@ -305,7 +306,7 @@ class Plotter:
 
     def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict, run_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None):
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None, no_draw=False):
         histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, run_names, parameter_names, legend_pars, legend_name_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
@@ -317,7 +318,8 @@ class Plotter:
         if plot_dir:
             c.SaveAs(f"{plot_dir}/{plot_name}_no_legend.pdf")
         l.Draw()
-        c.Draw()
+        if not no_draw:
+            c.Draw()
         self.canvases[plot_name] = c
         if plot_dir:
             c.SaveAs(f"{plot_dir}/{plot_name}.pdf")
@@ -325,7 +327,7 @@ class Plotter:
 
     def draw_plots_oo_names_per_run_name(self, plot_name: str, run_name: str, fit_results: dict, oo_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None):
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None, no_draw=False):
         histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names, legend_pars, legend_name_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
@@ -339,7 +341,58 @@ class Plotter:
         if plot_dir:
             c.SaveAs(f"{plot_dir}/{plot_name}_no_legend.pdf")
         l.Draw()
-        c.Draw()
+        if not no_draw:
+            c.Draw()
         self.canvases[plot_name] = c
         if plot_dir:
             c.SaveAs(f"{plot_dir}/{plot_name}.pdf")
+
+
+# not in plotter class
+def draw_overlaid_stacks(plot_name: str, stack_name: str, p_names: list[str], plotters: dict[str, Plotter], plot_dir: str|None = None, legend_pos: tuple[float, float, float, float]|None = None, y_min: float|None = None, y_max: float|None = None, legend_columns: int|None = None):
+    c = ROOT.TCanvas()
+
+    for i, name in enumerate(p_names):
+        p = plotters[name]
+        histos = p.histos[stack_name].values()
+        for h in histos:
+            if i == 0:
+                # h.SetFillColorAlpha(h.GetFillColor(), 0.75)
+                h.SetFillColorAlpha(h.GetFillColor(), 0.5)
+                h.SetLineColor(h.GetFillColor())
+            elif i == 2:
+                # h.SetFillColor(ROOT.kGray+3)
+                h.SetFillColor(ROOT.kBlack)
+                # h.SetFillColorAlpha(ROOT.kGray+3, 0.2)
+                # h.SetFillColor(ROOT.kWhite)
+                # h.SetFillStyle(3544)
+                # h.SetFillStyle(3013)
+                h.SetFillStyle(3006)
+                # h.SetFillStyle(1001)
+                h.SetLineColor(ROOT.kBlack)
+                h.SetLineStyle(ROOT.kSolid)
+        s = p.stacks[stack_name]
+        if i == 0:
+            if y_min is not None:
+                s.SetMinimum(y_min)
+            if y_max is not None:
+                s.SetMaximum(y_max)
+            s.Draw("nostackb hist")
+        else:
+            s.Draw("nostackb same hist")
+        if i == 1:
+            l = p.legends[stack_name]
+            if legend_pos:
+                l.SetX1NDC(legend_pos[0])
+                l.SetY1NDC(legend_pos[1])
+                l.SetX2NDC(legend_pos[2])
+                l.SetY2NDC(legend_pos[3])
+            if legend_columns:
+                l.SetNColumns(legend_columns)
+            l.Draw()
+    c.SetGridy()
+    Plotter.apply_canvas_properties(c)
+    c.Draw()
+    if plot_dir:
+        c.SaveAs(f"{plot_dir}/{plot_name}_overlaid_stacks.pdf")
+    return c

@@ -1,0 +1,10 @@
+model = SM_ac
+
+alias u_q = u:U
+alias d_q = d:D
+alias lep = e2:E2
+alias nu = n2:N2
+
+process ww = e1, E1 => lep, nu, u_q, d_q
+
+compile
