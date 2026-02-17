@@ -116,11 +116,13 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
     if split_helicity_reversal:
         e_pol_fit_parameters = [
             ROOT.RooRealVar("e_pol_L", "e_pol_L", 0., -0.5, 0.5),
-            ROOT.RooRealVar("e_pol_R", "e_pol_R", 0., -0.5, 0.5)
+            ROOT.RooRealVar("e_pol_R", "e_pol_R", 0., -0.5, 0.5),
+            ROOT.RooRealVar("e_pol_0", "e_pol_0", 0., -0.5, 0.5)
             ]
         p_pol_fit_parameters = [
             ROOT.RooRealVar("p_pol_L", "p_pol_L", 0., -0.5, 0.5),
-            ROOT.RooRealVar("p_pol_R", "p_pol_R", 0., -0.5, 0.5)
+            ROOT.RooRealVar("p_pol_R", "p_pol_R", 0., -0.5, 0.5),
+            ROOT.RooRealVar("p_pol_0", "p_pol_0", 0., -0.5, 0.5)
             ]
     all_fit_parameters = fit_parameters + e_pol_fit_parameters + p_pol_fit_parameters
 
@@ -134,14 +136,18 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
         # adjust slopes for pol parameters if split
         run_fit_parameters = fit_parameters.copy()
         if split_helicity_reversal:
-            if e_pol > 0:
+            if e_pol < 0:
+                e_pol_par = e_pol_fit_parameters[0]  # L
+            elif e_pol > 0:
                 e_pol_par = e_pol_fit_parameters[1]  # R
             else:
-                e_pol_par = e_pol_fit_parameters[0]  # L
-            if p_pol > 0:
+                e_pol_par = e_pol_fit_parameters[2]  # 0
+            if p_pol < 0:
+                p_pol_par = p_pol_fit_parameters[0]  # L
+            elif p_pol > 0:
                 p_pol_par = p_pol_fit_parameters[1]  # R
             else:
-                p_pol_par = p_pol_fit_parameters[0]  # L
+                p_pol_par = p_pol_fit_parameters[2]  # 0
             run_fit_parameters += [e_pol_par, p_pol_par]
         else:
             e_pol_par = run_fit_parameters[-2]
@@ -149,8 +155,18 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
         build_model(w, run_fit_parameters, obs, nominal_means_run, slopes_run, Cov_mean_O_run, f"_run{i}")
         fit_model = w.pdf(f"fit_model_run{i}")
         if pol_constraint:
-            e_pol_cnstr_v = abs(e_pol) * pol_constraint if e_pol != 0 else pol_constraint
-            p_pol_cnstr_v = abs(p_pol) * pol_constraint if p_pol != 0 else pol_constraint
+            # FIXME: this is wrong as the constraints are added multiple times :(
+            # as a workaround we now figure out how often each constraint is applied
+            # and scale up the value accordingly...
+            # assume we only have the cases of 1 run or 4 runs (LL LR RL RR)
+            n_same_constr = 1
+            if len(runs) == 4:
+                n_same_constr = 4
+                if split_helicity_reversal:
+                    n_same_constr /= 2
+            scaled_pol_constraint = pol_constraint * np.sqrt(n_same_constr)
+            e_pol_cnstr_v = abs(e_pol) * scaled_pol_constraint if e_pol != 0 else scaled_pol_constraint
+            p_pol_cnstr_v = abs(p_pol) * scaled_pol_constraint if p_pol != 0 else scaled_pol_constraint
             e_pol_cnstr_pdf = ROOT.RooGaussian(f"constraint_e_pol_run{i}", f"constraint_e_pol_run{i}", e_pol_par, ROOT.RooFit.RooConst(0.), ROOT.RooFit.RooConst(e_pol_cnstr_v))
             p_pol_cnstr_pdf = ROOT.RooGaussian(f"constraint_p_pol_run{i}", f"constraint_p_pol_run{i}", p_pol_par, ROOT.RooFit.RooConst(0.), ROOT.RooFit.RooConst(p_pol_cnstr_v))
             w.Import(e_pol_cnstr_pdf)
@@ -226,24 +242,28 @@ def fit(workspace, model_name, ds, silent: bool = False, minos: bool = False, co
     return res
 
 
-def make_par_histo(fit_res, parameter_names: list[str]):
+def make_par_histo(fit_res, parameter_names: list[str], x_label_dict: dict[str, str] = {}):
     n = len(parameter_names)
     h = ROOT.TH1D("", "", n, 0, n)
     fit_parameters = fit_res.floatParsFinal()
     for name in parameter_names:
+        nice_name = x_label_dict[name] if name in x_label_dict else name
         try:
             par = fit_parameters.find(name)
-            h.Fill(name, par.getError())
+            h.Fill(nice_name, par.getError())
         except:
-            h.Fill(name, 0)
+            h.Fill(nice_name, 0)
     return h
 
 
-def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str], legend_name_dict: dict[str, str] = {}, run_names: list[str] = []):
+def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str],
+                    legend_name_dict: dict[str, str] = {}, run_names: list[str] = [],
+                    x_label_dict: dict[str, str] = {}):
     for i, name, in enumerate(run_names):
         fit_res = fit_results[name]
-        h = make_par_histo(fit_res, parameter_names)
+        h = make_par_histo(fit_res, parameter_names, x_label_dict=x_label_dict)
         h.SetFillColor(ROOT.kP10Blue + i)
+        h.SetLineColor(ROOT.kP10Blue + i)
         leg_name = legend_name_dict[name] if name in legend_name_dict else name
         l.AddEntry(h, leg_name, "f")
         histos[name] = h
@@ -252,7 +272,8 @@ def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str], l
 
 def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict, run_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None, legend_name_dict: dict[str, str] = {}):
+                                legend_pars = None, legend_name_dict: dict[str, str] = {},
+                                x_label_dict: dict[str, str] = {}):
     histos = {}
     stack = ROOT.THStack()
     if legend_pars:
@@ -260,11 +281,14 @@ def make_plots_runs_per_oo_name(oo_name: str, fit_results: dict, run_names: list
     else:
         l = ROOT.TLegend()
     l.SetHeader(legend_name_dict[oo_name] if oo_name in legend_name_dict else oo_name)
-    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names, legend_name_dict, run_names)
+    make_par_histos(fit_results[oo_name], histos, stack, l, parameter_names, legend_name_dict, run_names, x_label_dict=x_label_dict)
     return histos, stack, l
 
 
-def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str], parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"], legend_pars = None, legend_name_dict: dict[str, str] = {}):
+def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names: list[str],
+                                     parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
+                                     legend_pars = None, legend_name_dict: dict[str, str] = {},
+                                     x_label_dict: dict[str, str] = {}):
     histos = {}
     stack = ROOT.THStack()
     if legend_pars:
@@ -274,7 +298,7 @@ def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names:
     l.SetHeader(legend_name_dict[run_name] if run_name in legend_name_dict else run_name)
     for i, oo_name in enumerate(oo_names):
         fit_res = fit_results[oo_name][run_name]
-        h = make_par_histo(fit_res, parameter_names)
+        h = make_par_histo(fit_res, parameter_names, x_label_dict=x_label_dict)
         h.SetFillColor(ROOT.kP10Blue + i)
         leg_name = legend_name_dict[oo_name] if oo_name in legend_name_dict else oo_name
         l.AddEntry(h, leg_name, "f")
@@ -295,26 +319,33 @@ class Plotter:
     def apply_canvas_properties(c):
         c.SetLeftMargin(0.15)
         c.SetRightMargin(0.05)
-        c.SetBottomMargin(0.12)
+        # c.SetBottomMargin(0.1375)
+        c.SetBottomMargin(0.14)
 
     @staticmethod
-    def apply_stack_properties(stack):
+    def apply_stack_properties(stack, unit:str = ""):
         # stack.GetXaxis().SetTitleSize(0.5)
         stack.GetXaxis().SetLabelSize(0.125)
-        stack.GetYaxis().SetTitle("absolute uncertainty")
+        if unit:
+            stack.GetYaxis().SetTitle(f"absolute uncertainty [{unit}]")
+        else:
+            stack.GetYaxis().SetTitle("absolute uncertainty")
 
 
     def draw_plots_runs_per_oo_name(self, plot_name: str, oo_name: str, fit_results: dict, run_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None, no_draw=False):
-        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, run_names, parameter_names, legend_pars, legend_name_dict)
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None, no_draw=False,
+                                x_label_dict: dict[str, str] = {}, unit: str = ""):
+        histos, stack, l = make_plots_runs_per_oo_name(oo_name, fit_results, run_names, parameter_names, legend_pars, legend_name_dict, x_label_dict=x_label_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
         c = ROOT.TCanvas()
         stack.Draw("nostackb hist")
-        self.apply_stack_properties(stack)
+        self.apply_stack_properties(stack, unit=unit)
         self.apply_canvas_properties(c)
+        c.Update()
+        # stack.Draw("nostackb hist")
         if plot_dir:
             c.SaveAs(f"{plot_dir}/{plot_name}_no_legend.pdf")
         l.Draw()
@@ -327,8 +358,9 @@ class Plotter:
 
     def draw_plots_oo_names_per_run_name(self, plot_name: str, run_name: str, fit_results: dict, oo_names: list[str],
                                 parameter_names: list[str] = ["g1z", "ka", "la", "mW", "e_pol_L", "e_pol_R", "p_pol_L", "p_pol_R"],
-                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None, no_draw=False):
-        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names, legend_pars, legend_name_dict)
+                                legend_pars = None, legend_name_dict: dict[str, str] = {}, plot_dir: str|None = None, no_draw=False,
+                                x_label_dict: dict[str, str] = {}, unit: str = ""):
+        histos, stack, l = make_plots_oo_names_per_run_name(run_name, fit_results, oo_names, parameter_names, legend_pars, legend_name_dict, x_label_dict=x_label_dict)
         self.histos[plot_name] = histos
         self.stacks[plot_name] = stack
         self.legends[plot_name] = l
@@ -336,7 +368,7 @@ class Plotter:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
         c = ROOT.TCanvas()
         stack.Draw("nostackb hist")
-        self.apply_stack_properties(stack)
+        self.apply_stack_properties(stack, unit=unit)
         self.apply_canvas_properties(c)
         if plot_dir:
             c.SaveAs(f"{plot_dir}/{plot_name}_no_legend.pdf")
@@ -349,13 +381,24 @@ class Plotter:
 
 
 # not in plotter class
-def draw_overlaid_stacks(plot_name: str, stack_name: str, p_names: list[str], plotters: dict[str, Plotter], plot_dir: str|None = None, legend_pos: tuple[float, float, float, float]|None = None, y_min: float|None = None, y_max: float|None = None, legend_columns: int|None = None):
+def draw_overlaid_stacks(plot_name: str, stack_name: str, p_names: list[str], plotters: dict[str, Plotter],
+                         plot_dir: str|None = None, legend_pos: tuple[float, float, float, float]|None = None,
+                         y_min: float|None = None, y_max: float|None = None, legend_columns: int|None = None,
+                         extra_legend_texts: list[str] = []):
     c = ROOT.TCanvas()
+    l = plotters[p_names[1]].legends[stack_name]
+    if legend_pos:
+        l.SetX1NDC(legend_pos[0])
+        l.SetY1NDC(legend_pos[1])
+        l.SetX2NDC(legend_pos[2])
+        l.SetY2NDC(legend_pos[3])
+    if legend_columns:
+        l.SetNColumns(legend_columns)
 
     for i, name in enumerate(p_names):
         p = plotters[name]
         histos = p.histos[stack_name].values()
-        for h in histos:
+        for j, h in enumerate(histos):
             if i == 0:
                 # h.SetFillColorAlpha(h.GetFillColor(), 0.75)
                 h.SetFillColorAlpha(h.GetFillColor(), 0.5)
@@ -369,8 +412,10 @@ def draw_overlaid_stacks(plot_name: str, stack_name: str, p_names: list[str], pl
                 # h.SetFillStyle(3013)
                 h.SetFillStyle(3006)
                 # h.SetFillStyle(1001)
-                h.SetLineColor(ROOT.kBlack)
-                h.SetLineStyle(ROOT.kSolid)
+                # h.SetLineColor(ROOT.kBlack)
+                # h.SetLineStyle(ROOT.kSolid)
+            if j == 0 and extra_legend_texts:
+                l.AddEntry(h, extra_legend_texts[i], "f")
         s = p.stacks[stack_name]
         if i == 0:
             if y_min is not None:
@@ -380,19 +425,25 @@ def draw_overlaid_stacks(plot_name: str, stack_name: str, p_names: list[str], pl
             s.Draw("nostackb hist")
         else:
             s.Draw("nostackb same hist")
-        if i == 1:
-            l = p.legends[stack_name]
-            if legend_pos:
-                l.SetX1NDC(legend_pos[0])
-                l.SetY1NDC(legend_pos[1])
-                l.SetX2NDC(legend_pos[2])
-                l.SetY2NDC(legend_pos[3])
-            if legend_columns:
-                l.SetNColumns(legend_columns)
-            l.Draw()
     c.SetGridy()
     Plotter.apply_canvas_properties(c)
+    if plot_dir:
+        c.SaveAs(f"{plot_dir}/{plot_name}_overlaid_stacks_no_legend.pdf")
+    if l:
+        l.Draw()
     c.Draw()
     if plot_dir:
         c.SaveAs(f"{plot_dir}/{plot_name}_overlaid_stacks.pdf")
     return c
+
+def make_corr_mat(fit_res, parameter_names: list[str], w, name_dict: dict[str, str] = {}):
+    h = ROOT.TH2D()
+    for  p_name1 in parameter_names:
+        p1 = w.var(p_name1)
+        p1_nice_name = name_dict[p_name1] if p_name1 in name_dict else p_name1
+        for  p_name2 in reversed(parameter_names):
+            p2 = w.var(p_name2)
+            val = fit_res.correlation(p1, p2)
+            p2_nice_name = name_dict[p_name2] if p_name2 in name_dict else p_name2
+            h.Fill(p1_nice_name, p2_nice_name, round(val, 4))
+    return h
