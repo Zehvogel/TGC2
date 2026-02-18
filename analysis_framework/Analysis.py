@@ -374,6 +374,7 @@ class Analysis:
         self._canvases[params] = canvas
         plot_name = self._plot_names[name] if name in self._plot_names else name
         stack.SetTitle(f";{plot_name};events")
+        stack.SetMinimum(10)
         stack.Draw(draw_opt)
         y_max_overlay = 0
         for h in overlay_hists:
@@ -407,10 +408,13 @@ class Analysis:
             canvas.SetLogy()
         if self._plot_label:
             self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
-        if draw_legend:
-            legend.Draw()
         pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol})"
         self._t.DrawLatexNDC(0.25, 0.85, pol_label_text)
+        if plot_dir:
+            Path(plot_dir).mkdir(parents=True, exist_ok=True)
+            canvas.SaveAs(f"{plot_dir}/{params}_no_legend.pdf")
+        if draw_legend:
+            legend.Draw()
         canvas.Draw()
         if plot_dir:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
@@ -474,9 +478,11 @@ class Analysis:
                 n_w = n * weight
                 res.append((k, n_w, n, weight))
         res.sort(key=lambda x: x[1], reverse=True)
-        text = f"name\tn_weighted\tn_true\tweight\n"
+        total = sum(r[1] for r in res)
+        text = f"name\tratio_weighted\tn_weighted\tn_true\tweight\n"
         for r in res:
-            text += f"{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}\n"
+            ratio = r[1] / total if total > 0 else 0
+            text += f"{r[0]}\t{ratio:.4f}\t{r[1]}\t{r[2]}\t{r[3]}\n"
         print(text)
         if dir:
             Path(dir).mkdir(parents=True, exist_ok=True)
@@ -516,16 +522,22 @@ class Analysis:
         self._canvases[params] = canvas
         canvas.SetRightMargin(right_margin)
         stack.SetTitle(";;events")
+        stack.SetMinimum(1e4)
+        stack.SetMaximum(1e11)
         stack.Draw("hist")
         for h in overlay_hists:
             h.Draw(f"hist same")
         x_axis = stack.GetXaxis()
         for i, name in enumerate(["All"] + names):
             x_axis.SetBinLabel(i+1, str(name))
-        legend.Draw()
         if self._plot_label:
             self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
+        pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol})"
+        self._t.DrawLatexNDC(0.25, 0.85, pol_label_text)
         canvas.SetLogy()
+        if plot_dir:
+            canvas.SaveAs(f"{plot_dir}/{params}_no_legend.pdf")
+        legend.Draw()
         canvas.Draw()
         if plot_dir:
             canvas.SaveAs(f"{plot_dir}/{params}.pdf")
@@ -578,6 +590,20 @@ class Analysis:
             line += line_piece
             line_csv.append(str(eff))
         output += f"{line} efficiency\n"
+        output_csv.append(",".join(line_csv))
+        final_counts = [numbers[category_name][-1] for category_name in self._categories]
+        total = sum(final_counts)
+        line = ""
+        line_csv = []
+        for category_name in self._categories:
+            pur = numbers[category_name][-1] / total if total > 0 else 0
+            if pur >= 0.01:
+                line_piece = f"{pur: >{offset + len(' (0e-00)')}.2f}"
+            else:
+                line_piece = f"{pur: >{offset + len(' (0e-00)')}.0e}"
+            line += line_piece
+            line_csv.append(str(pur))
+        output += f"{line} purity\n"
         output_csv.append(",".join(line_csv))
         print(output)
         if dir:
