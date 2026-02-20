@@ -491,7 +491,7 @@ class Analysis:
 
 
 
-    def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None, overlay: list[str]|None = None, right_margin: float = 0.05):
+    def draw_cutflow(self, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, plot_dir: str|None = None, overlay: list[str]|None = None, right_margin: float = 0.05, bottom_margin: float = 0.17):
         numbers, errors2 = self._calc_cutflow(int_lumi, e_pol, p_pol)
         names = list(list(self._df.values())[0].GetFilterNames())
         n_filters = len(names)
@@ -521,12 +521,13 @@ class Analysis:
         canvas = ROOT.TCanvas()
         self._canvases[params] = canvas
         canvas.SetRightMargin(right_margin)
+        canvas.SetBottomMargin(bottom_margin)
         stack.SetTitle(";;events")
         stack.SetMinimum(1e4)
         stack.SetMaximum(1e11)
         stack.Draw("hist")
         for h in overlay_hists:
-            h.Draw(f"hist same")
+            h.Draw("hist same")
         x_axis = stack.GetXaxis()
         for i, name in enumerate(["All"] + names):
             x_axis.SetBinLabel(i+1, str(name))
@@ -563,6 +564,7 @@ class Analysis:
             line_piece = f"{category_name: >{offset + len(' (0e-00)')}}"
             line += line_piece
             line_csv.append(category_name)
+        line_csv.append(str("cut"))
         output += f"{line}\n"
         output_csv.append(",".join(line_csv))
         for i, name in enumerate(["All"] + names):
@@ -578,6 +580,7 @@ class Analysis:
                 line += line_piece
                 line_csv.append(str(round(num)))
             output += f"{line} {name}\n"
+            line_csv.append(str(name))
             output_csv.append(",".join(line_csv))
         line = ""
         line_csv = []
@@ -590,6 +593,7 @@ class Analysis:
             line += line_piece
             line_csv.append(str(eff))
         output += f"{line} efficiency\n"
+        line_csv.append(str("efficiency"))
         output_csv.append(",".join(line_csv))
         final_counts = [numbers[category_name][-1] for category_name in self._categories]
         total = sum(final_counts)
@@ -604,13 +608,15 @@ class Analysis:
             line += line_piece
             line_csv.append(str(pur))
         output += f"{line} purity\n"
+        line_csv.append(str("purity"))
         output_csv.append(",".join(line_csv))
         print(output)
         if dir:
+            name = f"cutflow_{int_lumi}fb_{e_pol}_{p_pol}"
             Path(dir).mkdir(parents=True, exist_ok=True)
-            with open(f"{dir}/cutflow.txt", "w") as outfile:
+            with open(f"{dir}/{name}.txt", "w") as outfile:
                 outfile.write(output)
-            with open(f"{dir}/cutflow.csv", "w") as outfile:
+            with open(f"{dir}/{name}.csv", "w") as outfile:
                 outfile.write("\n".join(output_csv))
 
 
