@@ -30,7 +30,7 @@ class OptimalObservableHelper(Analysis):
     def define_optimal_observables_polarised(self, o_name: str, names: list[str], var_names: list[str], categories: list[str]|None = None, nom_epol: float = 0., nom_ppol: float = 0., add_pol_oo: bool = False):
         """Defines OOs, if names contains multiple names it averages over them."""
         nominal = [f"{name}_nominal" for name in names]
-        nominal_pol_w = [f"(0.25 * (1 + {nom_epol} * gPolHelper.e_pol({hel_idx})) * (1 + {nom_ppol} * gPolHelper.p_pol({hel_idx})) * {n}[{hel_idx}])" for n in nominal for hel_idx in range(4)]
+        nominal_pol_w = [f"(0.25 * (1 + {nom_epol} * gPolHelper.e_pol({hel_idx})) * (1 + {nom_ppol} * gPolHelper.p_pol({hel_idx})) * {n}[{hel_idx}])" for hel_idx in range(4) for n in nominal]
         combined_names = []
         for var_name in var_names:
             var = AltSetupHandler.get_var_from_name_1d(var_name)
@@ -49,8 +49,16 @@ class OptimalObservableHelper(Analysis):
             n = len(names)
             for i in range(4):
                 sqme_hel_parts.append("+".join(nominal_pol_w[i*n:(i+1)*n]))
-            self._define((f"{o_name}_epol", f"((({sqme_hel_parts[2]} + {sqme_hel_parts[3]}) / (1 + {nom_epol})) - (({sqme_hel_parts[0]} + {sqme_hel_parts[1]}) / (1 - {nom_epol}))) / ({'+'.join(sqme_hel_parts)})"), categories=categories)
-            self._define((f"{o_name}_ppol", f"((({sqme_hel_parts[1]} + {sqme_hel_parts[3]}) / (1 + {nom_ppol})) - (({sqme_hel_parts[0]} + {sqme_hel_parts[2]}) / (1 - {nom_ppol}))) / ({'+'.join(sqme_hel_parts)})"), categories=categories)
+            # print(f"sqme_hel_parts[0]: {sqme_hel_parts[0]}")
+            # print(f"sqme_hel_parts[1]: {sqme_hel_parts[1]}")
+            # print(f"sqme_hel_parts[2]: {sqme_hel_parts[2]}")
+            # print(f"sqme_hel_parts[3]: {sqme_hel_parts[3]}")
+            epol_string = f"{o_name}_epol", f"((({sqme_hel_parts[2]} + {sqme_hel_parts[3]}) / (1 + {nom_epol})) - (({sqme_hel_parts[0]} + {sqme_hel_parts[1]}) / (1 - {nom_epol}))) / ({'+'.join(sqme_hel_parts)})"
+            ppol_string = f"{o_name}_ppol", f"((({sqme_hel_parts[1]} + {sqme_hel_parts[3]}) / (1 + {nom_ppol})) - (({sqme_hel_parts[0]} + {sqme_hel_parts[2]}) / (1 - {nom_ppol}))) / ({'+'.join(sqme_hel_parts)})"
+            # print(f"epol_str: {epol_string}")
+            # print(f"ppol_str: {ppol_string}")
+            self._define((epol_string), categories=categories)
+            self._define((ppol_string), categories=categories)
             combined_names.append(f"{o_name}_epol")
             combined_names.append(f"{o_name}_ppol")
         return combined_names
