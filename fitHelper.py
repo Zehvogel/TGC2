@@ -447,3 +447,26 @@ def make_corr_mat(fit_res, parameter_names: list[str], w, name_dict: dict[str, s
             p2_nice_name = name_dict[p_name2] if p_name2 in name_dict else p_name2
             h.Fill(p1_nice_name, p2_nice_name, round(val, 4))
     return h
+
+# class precision_calculator():
+#     # dirty hardcoded pars
+#     pars = ["g1z", "ka", "la", "mW", "e_pol_0", "p_pol_0"]
+
+#     def __init__(self, path: str, n: int):
+#         self._get_workspace(path)
+#         self.n = n
+#         tmp_cov = self.ws.pdf("fit_model_run0").covarianceMatrix()
+#         n_pars = tmp_cov.GetNrows()
+#         self.full_cov = np.asarray([[tmp_cov(i,j) for j in range(n_pars)] for i in range(n_pars)])
+#         self.full_cov *= n
+
+
+#     def _get_workspace(self, path: str):
+#         with ROOT.TFile.Open(path) as f:
+#             self.ws = f.Get("w")
+
+
+#     def get_exp_prec(self, pars: list[str]):
+#         idcs = [self.pars.index(par) for par in pars]
+#         red_cov = self.full_cov[np.ix_(idcs, idcs)]
+#         return np.sqrt(np.diag(np.linalg.inv(red_cov)) / self.n)

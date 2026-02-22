@@ -835,7 +835,8 @@ class Analysis:
                 # get histogram
                 params = f"unscaled_{name}_{k}"
                 h = histograms[k]
-                h.SetTitle(f"{k};{name};unweighted events")
+                plot_name = self._plot_names[name] if name in self._plot_names else name
+                h.SetTitle(f"{k};{plot_name};unweighted events")
                 self._draw_canvas(h, params, draw_opt=draw_opt, logY=logY, plot_dir=plot_dir)
 
 
