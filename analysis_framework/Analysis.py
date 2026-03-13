@@ -11,32 +11,44 @@ import os
 class Analysis:
     """Holds a Dataset, all the data frames and possibly also all the histograms"""
 
-    _dataset: Dataset
-    _df: dict[str, Any] = {}
-    _histograms = {}
-    _varied_histograms = {}
-    _sums = {}
-    _means = {}
-    _stacks = {}
-    _canvases = {}
-    # need a place to "park" them somewhere as the THStacks do not take ownership :(
-    _scaled_histograms = {}
-    _legends = {}
-    _reports = {}
-    _categories: dict[str, list[str]] = {}
-    _snapshots = {}
-    _booked_objects: list[Any] = []
-    _arrows = {}
-    _lines = {}
-    _plot_label = None
+    # _dataset: Dataset
+    # _df: dict[str, Any] = {}
+    # _histograms = {}
+    # _varied_histograms = {}
+    # _sums = {}
+    # _means = {}
+    # _stacks = {}
+    # _canvases = {}
+    # # need a place to "park" them somewhere as the THStacks do not take ownership :(
+    # _scaled_histograms = {}
+    # _legends = {}
+    # _reports = {}
+    # _categories: dict[str, list[str]] = {}
+    # _snapshots = {}
+    # _booked_objects: list[Any] = []
+    # _arrows = {}
+    # _lines = {}
+    # _plot_label = None
     _t = ROOT.TLatex()
-    _pol_labels = {}
-    _plot_names = {}
+    # _pol_labels = {}
+    # _plot_names = {}
 
 
     def __init__(self, dataset: Dataset, friend_datasets: list[Dataset] = []):
         ROOT.gInterpreter.Declare("#include \"utils.h\"")
         self._dataset = dataset
+        self._df = {}
+        self._booked_objects = []
+        self._sums = {}
+        self._means = {}
+        self._histograms = {}
+        self._stacks = {}
+        self._scaled_histograms = {}
+        self._legends = {}
+        self._snapshots = {}
+        self._arrows = {}
+        self._lines = {}
+        self._canvases = {}
         for name, tree_name, files in dataset.get_samples():
             # filter out meta only
             if tree_name == "" and files == [""]:
@@ -107,6 +119,7 @@ class Analysis:
 
     def _apply_to_frames(self, method_name: str, args, categories: list[str]|None = None):
         for k, res_df in self._call_on_frames(method_name, args, categories):
+            # print(self._df[k])
             self._df[k] = res_df
 
 
@@ -140,6 +153,7 @@ class Analysis:
 
 
     def init_categories(self):
+        self._categories = {}
         for k in self._df:
             category_name = self._dataset.get_category(k)
             # TODO: error handling if there is no category?
@@ -360,11 +374,11 @@ class Analysis:
                 h.SetLineColor(kP10[i].GetNumber())
                 h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
                 overlay_hists.append(h)
-                legend.AddEntry(h, category_name, "l")
+                legend.AddEntry(h, self._plot_names.get(category_name, category_name), "l")
             else:
                 h.SetFillColor(kP10[i].GetNumber())
                 stack.Add(h)
-                legend.AddEntry(h, category_name, "f")
+                legend.AddEntry(h, self._plot_names.get(category_name, category_name), "f")
             # store h so that it does not get deleted
             self._scaled_histograms[params][category_name] = h
         self._legends[params] = legend
@@ -428,6 +442,7 @@ class Analysis:
 
 
     def book_reports(self):
+        self._reports = {}
         for k, df in self._df.items():
             report = df.Report()
             self._reports[k] = report
@@ -506,7 +521,7 @@ class Analysis:
             nums = numbers[category_name]
             for j, count in enumerate(nums):
                 h.Fill(j, count)
-            legend.AddEntry(h, category_name, "f")
+            legend.AddEntry(h, self._plot_names.get(category_name, category_name), "f")
             if overlay and category_name in overlay:
                 h.SetLineColor(kP10[i].GetNumber())
                 h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
@@ -852,12 +867,13 @@ class Analysis:
         return h
 
 
-    def draw_summed_unscaled_histograms(self, name: str, category: str, draw_opt: str = "hist", logY: bool = False, plot_dir: str|None = None, RMS90: bool = False):
+    def draw_summed_unscaled_histograms(self, name: str, category: str, draw_opt: str = "hist", logY: bool = False, plot_dir: str|None = None, RMS90: bool = False, draw_statbox: bool = False):
         params = f"unscaled_sum_{name}_{category}"
         h = self._make_summed_unscaled_histogram(name, category)
         # h.SetTitle(f"{k};{name};events")
         if not logY:
             h.SetMinimum(0)
+        h.SetStats(draw_statbox)
         # FIXME: not a stack but this thing is only there to keep stuff alive anyway
         self._stacks[params] = h
         if RMS90:

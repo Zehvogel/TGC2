@@ -85,12 +85,20 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
     for lumi_share, e_pol, p_pol in runs:
         fit_input_file = f"{input_path}/fit-inputs-{e_pol}-{p_pol}-{oo_name}_oo.txt"
         fit_inputs = load_fit_input(fit_input_file)
-        pars_list.append(fit_inputs[0])
+        pars = fit_inputs[0]
         n_per_ab.append(fit_inputs[1])
-        nominal_means.append(fit_inputs[2])
         slopes.append(fit_inputs[3])
         Cov_O = fit_inputs[4]
-        Cov_mean_O.append(np.asarray(Cov_O) / (n_per_ab[-1] * run_ab * lumi_share))
+        Cov_mean = np.asarray(Cov_O) / (n_per_ab[-1] * run_ab * lumi_share)
+        nom_means = fit_inputs[2]
+        if "cc10" in oo_name:
+            # need to do some dirty removal of last par because the pol stuff in the cov matrix makes it singular
+            pars = pars[:-1]
+            Cov_mean = Cov_mean[:-1,:-1]
+            nom_means = nom_means[:-1]
+        Cov_mean_O.append(Cov_mean)
+        pars_list.append(pars)
+        nominal_means.append(nom_means)
         means_list.append(fit_inputs[5])
 
     # build common obs and pars, assume they are the same for all runs
@@ -109,7 +117,9 @@ def build_sim_ws(runs, input_path, oo_name, run_ab, split_helicity_reversal: boo
         obs.append(o)
     pars = pars_list[0].copy()
     if split_helicity_reversal:
-        pars = pars[:-2]  # remove pol pars
+        pars.remove("epol") if "epol" in pars else None
+        pars.remove("ppol") if "ppol" in pars else None
+        # pars = pars[:-2]  # remove pol pars
     fit_parameters = [ROOT.RooRealVar(par, par, 0., -0.5, 0.5) for par in pars]
     e_pol_fit_parameters = []
     p_pol_fit_parameters = []

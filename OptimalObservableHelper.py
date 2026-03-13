@@ -38,7 +38,7 @@ class OptimalObservableHelper(Analysis):
             # need to prefix every hel_sqme[hel_idx]
             # with 0.25 * (1 + nom_e_pol + gPolHelper.e_pol(hel_idx)) * (1 + nom_p_pol * gPolHelper.p_pol(hel_idx))
             # BUT I need to iterate hel_idx here myself and not use the global one because the OO is not allowed to know it!
-            varied_pol_w = [f"(0.25 * (1 + {nom_epol} * gPolHelper.e_pol({hel_idx})) * (1 + {nom_ppol} * gPolHelper.p_pol({hel_idx})) * {v}[{hel_idx}])" for v in varied for hel_idx in range(4)]
+            varied_pol_w = [f"(0.25 * (1 + {nom_epol} * gPolHelper.e_pol({hel_idx})) * (1 + {nom_ppol} * gPolHelper.p_pol({hel_idx})) * {v}[{hel_idx}])" for hel_idx in range(4) for v in varied]
             comb_name = f"{o_name}_{var_name}"
             self._define((comb_name, f"{1/var} * (({'+'.join(varied_pol_w)}) - ({'+'.join(nominal_pol_w)})) / ({'+'.join(nominal_pol_w)})"), categories)
             combined_names.append(comb_name)
@@ -158,7 +158,7 @@ class OptimalObservableHelper(Analysis):
             for oo in oo_names:
                 oo_w_name = f"{oo}_{w_name}"
                 oo_sum = self.get_sum(oo_w_name, e_pol=e_pol, p_pol=p_pol, categories=categories)
-                print(oo,oo_w_name, oo_sum, w_sum)
+                # print(oo,oo_w_name, oo_sum, w_sum)
                 oo_means[oo_w_name] = oo_sum / w_sum #if w_sum != 0. else 0.
 
         if vary_pol:

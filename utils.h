@@ -1,3 +1,4 @@
+#pragma once
 
 Double_t rms90(TH1 *h) {
 

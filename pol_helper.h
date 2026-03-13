@@ -1,3 +1,4 @@
+#pragma once
 struct PolHelper
 {
     const double m_process_e_pol[4] = {-1., -1., 1., 1.};
