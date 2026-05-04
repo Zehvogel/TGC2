@@ -17,6 +17,9 @@ class ReweightingHelper(Analysis):
         whizard_prefix = subprocess.run(['whizard-config', '--prefix'], capture_output=True, encoding='ascii').stdout.strip()
         whizard_libs = f"{whizard_prefix}/lib/"
         # print(whizard_libs)
+        # FIXME find a better way to get this path
+        # ROOT.gSystem.AddDynamicPath("/cvmfs/sw.hsf.org/key4hep/releases/2026-02-01/x86_64-almalinux9-gcc14.2.0-opt/hepmc3/3.3.1-3o4ayl/lib64/")
+        ROOT.gSystem.Load("libHepMC3rootIO.so")
         ROOT.gSystem.AddDynamicPath(whizard_libs)
         ROOT.gSystem.Load("libwhizard.so")
         ROOT.gSystem.Load("libwhizard_main.so")

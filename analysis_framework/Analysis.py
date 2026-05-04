@@ -49,6 +49,7 @@ class Analysis:
         self._arrows = {}
         self._lines = {}
         self._canvases = {}
+        self._plot_names = {}
         for name, tree_name, files in dataset.get_samples():
             # filter out meta only
             if tree_name == "" and files == [""]:
@@ -80,7 +81,7 @@ class Analysis:
                 yield k, df
         else:
             for category_name in categories:
-                category = self._categories[category_name]
+                category = self._categories.get(category_name, [])
                 for df_name in category:
                     df = self._df[df_name]
                     yield df_name, df
@@ -139,11 +140,12 @@ class Analysis:
 
     # refactor to use internal implementation above
     def define_only_on(self, categories: list[str], *args):
-        for category_name in categories:
-            category = self._categories[category_name]
-            for df_name in category:
-                df = self._df[df_name]
-                self._df[df_name] = df.Define(*args)
+        self._define(args, categories)
+        # for category_name in categories:
+        #     category = self._categories[category_name]
+        #     for df_name in category:
+        #         df = self._df[df_name]
+        #         self._df[df_name] = df.Define(*args)
 
 
     def col_exists(self, col_name: str) -> bool:
@@ -339,14 +341,14 @@ class Analysis:
     #         return pol_label
 
 
-    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None, draw_legend: bool = True, right_margin: float = 0.05):
+    def draw_histogram(self, name: str, int_lumi: float = 5000, e_pol: float = 0.0, p_pol: float = 0.0, draw_opt: str = "hist", categories: list[str]|None = None, logY: bool = False, plot_dir: str|None = None, x_arrowl: float|None = None, x_arrowr: float|None = None, overlay: list[str]|None = None, draw_legend: bool = True, right_margin: float = 0.05, legend_pos=(0.625, 0.7, 1., 1,), legend_columns=2):
         histograms = self._histograms[name]
         stack = ROOT.THStack()
         params = (name, int_lumi, e_pol, p_pol)
         self._scaled_histograms[params] = {}
-        legend = ROOT.TLegend(0.6, 0.7, 1., 1,)
+        legend = ROOT.TLegend(*legend_pos)
         # legend = ROOT.TLegend(0.84, 0.15, 1., 1,)
-        legend.SetNColumns(2)
+        legend.SetNColumns(legend_columns)
         overlay_hists = []
         # FIXME: put the calculation of the histograms into a separate method and only calculate them here if needed
         for i, (category_name, dataframes) in enumerate(self._categories.items()):
@@ -422,8 +424,8 @@ class Analysis:
             canvas.SetLogy()
         if self._plot_label:
             self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
-        pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol})"
-        self._t.DrawLatexNDC(0.25, 0.85, pol_label_text)
+        pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol}), {int_lumi/1000} ab^{{-1}}"
+        self._t.DrawLatexNDC(0.17, 0.85, pol_label_text)
         if plot_dir:
             Path(plot_dir).mkdir(parents=True, exist_ok=True)
             canvas.SaveAs(f"{plot_dir}/{params}_no_legend.pdf")
@@ -438,7 +440,10 @@ class Analysis:
 
     def add_filter(self, expression: str, name: str):
         for k, df in self._df.items():
-            self._df[k] = df.Filter(expression, name)
+            try:
+                self._df[k] = df.Filter(expression, name)
+            except Exception as e:
+                print(f"Error occurred while filtering df {k}: {e}")
 
 
     def book_reports(self):
@@ -511,7 +516,7 @@ class Analysis:
         names = list(list(self._df.values())[0].GetFilterNames())
         n_filters = len(names)
         stack = ROOT.THStack()
-        legend = ROOT.TLegend(0.6, 0.7, 1., 1,)
+        legend = ROOT.TLegend(0.625, 0.7, 1., 1,)
         overlay_hists = []
         name = "cut flow"
         params = (name, int_lumi, e_pol, p_pol)
@@ -521,12 +526,13 @@ class Analysis:
             nums = numbers[category_name]
             for j, count in enumerate(nums):
                 h.Fill(j, count)
-            legend.AddEntry(h, self._plot_names.get(category_name, category_name), "f")
             if overlay and category_name in overlay:
+                legend.AddEntry(h, self._plot_names.get(category_name, category_name), "l")
                 h.SetLineColor(kP10[i].GetNumber())
                 h.SetLineWidth(ROOT.gStyle.GetLineWidth()*2)
                 overlay_hists.append(h)
             else:
+                legend.AddEntry(h, self._plot_names.get(category_name, category_name), "f")
                 h.SetFillColor(kP10[i].GetNumber())
                 stack.Add(h)
             self._scaled_histograms[params][category_name] = h
@@ -548,8 +554,8 @@ class Analysis:
             x_axis.SetBinLabel(i+1, str(name))
         if self._plot_label:
             self._t.DrawLatexNDC(0.25, 0.93935, self._plot_label)
-        pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol})"
-        self._t.DrawLatexNDC(0.25, 0.85, pol_label_text)
+        pol_label_text = f"P(e^{{-}},e^{{+}}) = ({e_pol}, {p_pol}), {int_lumi/1000} ab^{{-1}}"
+        self._t.DrawLatexNDC(0.17, 0.85, pol_label_text)
         canvas.SetLogy()
         if plot_dir:
             canvas.SaveAs(f"{plot_dir}/{params}_no_legend.pdf")
@@ -892,7 +898,9 @@ class Analysis:
             # just need to keep these alive somewhere
             self._stacks[params] = h
             h.SetLineColor(kP10[i].GetNumber())
-            legend.AddEntry(h, name.removesuffix(legend_remove_suffix), "l")
+            nice_name = name.removesuffix(legend_remove_suffix)
+            nice_name = self._plot_names.get(nice_name, nice_name)
+            legend.AddEntry(h, nice_name, "l")
             stack.Add(h)
         params = f"comparison_{'_'.join(names)}"
         self._legends[params] = legend

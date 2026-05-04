@@ -274,6 +274,7 @@ def make_par_histos(fit_results, histos, stack, l, parameter_names: list[str],
         h = make_par_histo(fit_res, parameter_names, x_label_dict=x_label_dict)
         h.SetFillColor(ROOT.kP10Blue + i)
         h.SetLineColor(ROOT.kP10Blue + i)
+        # h.LabelsOption("v")
         leg_name = legend_name_dict[name] if name in legend_name_dict else name
         l.AddEntry(h, leg_name, "f")
         histos[name] = h
@@ -312,6 +313,7 @@ def make_plots_oo_names_per_run_name(run_name: str, fit_results: dict, oo_names:
         h.SetFillColor(ROOT.kP10Blue + i)
         leg_name = legend_name_dict[oo_name] if oo_name in legend_name_dict else oo_name
         l.AddEntry(h, leg_name, "f")
+        # h.LabelsOption("v")
         histos[oo_name] = h
         stack.Add(h)
     return histos, stack, l
@@ -335,7 +337,9 @@ class Plotter:
     @staticmethod
     def apply_stack_properties(stack, unit:str = ""):
         # stack.GetXaxis().SetTitleSize(0.5)
-        stack.GetXaxis().SetLabelSize(0.125)
+        # stack.GetXaxis().SetLabelSize(0.125)
+        # needed to have the additional space for [GeV] behind m_W
+        stack.GetXaxis().SetLabelSize(0.095)
         if unit:
             stack.GetYaxis().SetTitle(f"absolute uncertainty [{unit}]")
         else:
