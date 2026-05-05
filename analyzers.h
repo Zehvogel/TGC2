@@ -51,16 +51,23 @@ RVec<int> subset_to_mask(std::size_t orig_col_size, const IDVec& subset_col) {
     return res;
 }
 
-RVec<int> mcp_mask_to_pfo_mask(const RVec<int>& mcp_mask, const PFOVec& pfo_col, const IDVec& from, const IDVec& to, const RVec<float>& weights)
+RVec<int> mcp_mask_to_pfo_mask(const RVec<int>& mcp_mask, const PFOVec& pfo_col, const IDVec& from, const IDVec& to, const RVec<float>& weights, bool use_cluster = true)
 {
     RVec<int> pfo_mask(pfo_col.size(), 0);
     for (std::size_t i = 0; i < weights.size(); i++) {
         int j = to[i].index;
         if (mcp_mask[j]) {
             auto weight = weights[i];
-            float c_weight = float( int(weight) / 10000 ) / 1000.f;
-            if (c_weight > 0.5) {
-                pfo_mask[from[i].index] = 1;
+            if (use_cluster) {
+                float c_weight = float( int(weight) / 10000 ) / 1000.f;
+                if (c_weight > 0.5) {
+                    pfo_mask[from[i].index] = 1;
+                }
+            } else {
+                float t_weight = float( int(weight) % 10000 ) / 1000.f;
+                if (t_weight > 0.5) {
+                    pfo_mask[from[i].index] = 1;
+                }
             }
         }
     }

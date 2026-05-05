@@ -21,4 +21,5 @@ class ColorWrapper:
     def GetNumber(self):
         return self.color_number
 
-kP10 = [ColorWrapper(ROOT.kP10Blue+i) for i in range(10)]
+# kP10 = [ColorWrapper(ROOT.kP10Blue+i) for i in range(10)] + [ColorWrapper(40+i) for i in range(10)] # to provide some overflow
+kP10 = [ColorWrapper(ROOT.kP10Blue+i) for i in range(10)] + [ColorWrapper(i) for i in [46, 38, 30]] # to provide some overflow
